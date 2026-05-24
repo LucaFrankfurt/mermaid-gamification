@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent, UIEvent } from 'react';
 import mermaid from 'mermaid';
-import { CHALLENGES, validateChallenge } from './challenges.js';
-import { TRANSLATIONS } from './i18n.js';
-import { playSuccess, playFailure, playLevelUp, playClick } from './soundEffects.js';
+import { CHALLENGES, validateChallenge, Challenge, ValidationRule } from './challenges';
+import { TRANSLATIONS } from './i18n';
+import { playSuccess, playFailure, playLevelUp, playClick } from './soundEffects';
 
 // Premium lucide-react icons for UI styling
 import {
@@ -52,7 +52,7 @@ mermaid.initialize({
  * Highly optimized, offline-safe Mermaid.js real-time syntax highlighter function
  * Escapes HTML tags and wraps keywords, arrows, labels, strings and comments in styled tokens.
  */
-const highlightMermaid = (code) => {
+const highlightMermaid = (code: string): string => {
   if (!code) return '';
   
   // Escape HTML to prevent injection and layout breakdown
@@ -62,14 +62,14 @@ const highlightMermaid = (code) => {
     .replace(/>/g, '&gt;');
   
   // 1. Comments Token preservation (%% ...)
-  const comments = [];
+  const comments: string[] = [];
   escaped = escaped.replace(/(%%.*)/g, (match) => {
     comments.push(match);
     return `__COMMENT_${comments.length - 1}__`;
   });
 
   // 2. Strings Token preservation ("...")
-  const strings = [];
+  const strings: string[] = [];
   escaped = escaped.replace(/("[^"]*")/g, (match) => {
     strings.push(match);
     return `__STRING_${strings.length - 1}__`;
@@ -119,8 +119,8 @@ const highlightMermaid = (code) => {
 
 function App() {
   // Navigation & Locale state
-  const [activeTab, setActiveTab] = useState('journey');
-  const [language, setLanguage] = useState(() => {
+  const [activeTab, setActiveTab] = useState<string>('journey');
+  const [language, setLanguage] = useState<string>(() => {
     try {
       const savedLang = localStorage.getItem('mermaid_ninja_lang');
       return savedLang || 'en';
@@ -130,7 +130,7 @@ function App() {
   });
   
   // Custom Challenges & Combined curriculum state
-  const [customChallenges, setCustomChallenges] = useState(() => {
+  const [customChallenges, setCustomChallenges] = useState<Challenge[]>(() => {
     try {
       const savedCustom = localStorage.getItem('mermaid_ninja_custom_challenges');
       return savedCustom ? JSON.parse(savedCustom) : [];
@@ -140,7 +140,7 @@ function App() {
   });
   
   // Game state
-  const [currentLevel, setCurrentLevel] = useState(() => {
+  const [currentLevel, setCurrentLevel] = useState<number>(() => {
     try {
       const savedLevel = localStorage.getItem('mermaid_ninja_level');
       return savedLevel ? parseInt(savedLevel, 10) : 1;
@@ -148,7 +148,7 @@ function App() {
       return 1;
     }
   });
-  const [xp, setXp] = useState(() => {
+  const [xp, setXp] = useState<number>(() => {
     try {
       const savedXp = localStorage.getItem('mermaid_ninja_xp');
       return savedXp ? parseInt(savedXp, 10) : 0;
@@ -156,7 +156,7 @@ function App() {
       return 0;
     }
   });
-  const [completedLevels, setCompletedLevels] = useState(() => {
+  const [completedLevels, setCompletedLevels] = useState<number[]>(() => {
     try {
       const savedCompleted = localStorage.getItem('mermaid_ninja_completed');
       return savedCompleted ? JSON.parse(savedCompleted) : [];
@@ -164,7 +164,7 @@ function App() {
       return [];
     }
   });
-  const [journeyCodes, setJourneyCodes] = useState(() => {
+  const [journeyCodes, setJourneyCodes] = useState<Record<number, string>>(() => {
     try {
       const savedCodes = localStorage.getItem('mermaid_ninja_codes');
       return savedCodes ? JSON.parse(savedCodes) : {};
@@ -172,8 +172,8 @@ function App() {
       return {};
     }
   });
-  const [wordWrap, setWordWrap] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
+  const [wordWrap, setWordWrap] = useState<boolean>(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
       const savedTheme = localStorage.getItem('mermaid_ninja_theme');
       return savedTheme === 'dark';
@@ -183,51 +183,51 @@ function App() {
   });
   
   // Creator Form States
-  const [creatorNameEn, setCreatorNameEn] = useState('');
-  const [creatorNameDe, setCreatorNameDe] = useState('');
-  const [creatorStoryEn, setCreatorStoryEn] = useState('');
-  const [creatorStoryDe, setCreatorStoryDe] = useState('');
-  const [creatorMissionEn, setCreatorMissionEn] = useState('');
-  const [creatorMissionDe, setCreatorMissionDe] = useState('');
-  const [creatorStarterCode, setCreatorStarterCode] = useState('graph TD\n    Start[Start] --> Process[Process]');
-  const [creatorBeltEmoji, setCreatorBeltEmoji] = useState('🔴');
-  const [creatorBadgeEmoji, setCreatorBadgeEmoji] = useState('🔥');
-  const [creatorBadgeNameEn] = useState('Custom Star');
-  const [creatorBadgeNameDe] = useState('Custom Stern');
-  const [creatorXpReward, setCreatorXpReward] = useState(100);
-  const [creatorRules, setCreatorRules] = useState([]);
+  const [creatorNameEn, setCreatorNameEn] = useState<string>('');
+  const [creatorNameDe, setCreatorNameDe] = useState<string>('');
+  const [creatorStoryEn, setCreatorStoryEn] = useState<string>('');
+  const [creatorStoryDe, setCreatorStoryDe] = useState<string>('');
+  const [creatorMissionEn, setCreatorMissionEn] = useState<string>('');
+  const [creatorMissionDe, setCreatorMissionDe] = useState<string>('');
+  const [creatorStarterCode, setCreatorStarterCode] = useState<string>('graph TD\n    Start[Start] --> Process[Process]');
+  const [creatorBeltEmoji, setCreatorBeltEmoji] = useState<string>('🔴');
+  const [creatorBadgeEmoji, setCreatorBadgeEmoji] = useState<string>('🔥');
+  const [creatorBadgeNameEn] = useState<string>('Custom Star');
+  const [creatorBadgeNameDe] = useState<string>('Custom Stern');
+  const [creatorXpReward, setCreatorXpReward] = useState<number>(100);
+  const [creatorRules, setCreatorRules] = useState<ValidationRule[]>([]);
 
   // Combined curriculum
   const ALL_CHALLENGES = [...CHALLENGES, ...customChallenges];
 
   // Sandbox State
-  const [sandboxCode, setSandboxCode] = useState(`graph TD
+  const [sandboxCode, setSandboxCode] = useState<string>(`graph TD
     Client[📱 Web Client] -->|API Requests| Gateway[⚡ API Gateway]
     Gateway -->|Auth Check| Microservice[🔒 Auth Service]
     Gateway -->|Fetch Coffee logs| Database[(🛢️ Coffee Log DB)]
 `);
-  const [sandboxTemplate, setSandboxTemplate] = useState('flowchart');
+  const [sandboxTemplate, setSandboxTemplate] = useState<string>('flowchart');
 
   // Compilation & Renderer state
-  const [currentCode, setCurrentCode] = useState('');
-  const [svgOutput, setSvgOutput] = useState('');
-  const [compileError, setCompileError] = useState(null);
-  const [senseiTip, setSenseiTip] = useState('');
+  const [currentCode, setCurrentCode] = useState<string>('');
+  const [svgOutput, setSvgOutput] = useState<string>('');
+  const [compileError, setCompileError] = useState<string | null>(null);
+  const [senseiTip, setSenseiTip] = useState<string>('');
   
   // UI states
-  const [showLevelUp, setShowLevelUp] = useState(false);
-  const [justLevelUpData, setJustLevelUpData] = useState(null);
-  const [toastMessage, setToastMessage] = useState(null);
-  const [activeAccordion, setActiveAccordion] = useState(null);
+  const [showLevelUp, setShowLevelUp] = useState<boolean>(false);
+  const [justLevelUpData, setJustLevelUpData] = useState<Challenge | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeAccordion, setActiveAccordion] = useState<number | null>(null);
 
   // References for synchronized scroll gutter and custom syntax highlighting overlays
-  const textareaRef = useRef(null);
-  const gutterRef = useRef(null);
-  const highlightRef = useRef(null);
-  const compileTimeoutRef = useRef(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLPreElement>(null);
+  const compileTimeoutRef = useRef<any>(null);
 
   // Translate helper shortcut
-  const t = useCallback((key) => {
+  const t = useCallback((key: string): string => {
     // Check if key targets a custom challenge
     if (key.startsWith('challenges.level')) {
       const parts = key.split('.');
@@ -235,7 +235,7 @@ function App() {
       const levelNum = parseInt(levelStr.replace('level', ''), 10);
       const customCh = customChallenges.find(c => c.level === levelNum);
       if (customCh) {
-        const langData = customCh[language] || customCh['en'] || {};
+        const langData: any = customCh[language as keyof Challenge] || customCh['en' as keyof Challenge] || {};
         if (parts[2] === 'name') return langData.name || '';
         if (parts[2] === 'badgeName') return langData.badgeName || langData.name || '';
         if (parts[2] === 'story') return langData.story || '';
@@ -247,7 +247,7 @@ function App() {
     }
 
     const parts = key.split('.');
-    let current = TRANSLATIONS[language];
+    let current: any = TRANSLATIONS[language];
     for (const part of parts) {
       if (current === undefined || current === null) return key;
       current = current[part];
@@ -256,7 +256,7 @@ function App() {
   }, [language, customChallenges]);
 
   // Compile Mermaid function
-  const compileMermaid = useCallback(async (code) => {
+  const compileMermaid = useCallback(async (code: string) => {
     const renderId = 'mermaid-render-' + Math.floor(Math.random() * 1000000);
     try {
       // First, parse code to check syntactic validity safely
@@ -276,7 +276,7 @@ function App() {
           setSenseiTip(t('senseiTipSuccess'));
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Mermaid renderer caught error:", err);
       const errText = err.str || err.message || "Mermaid compilation syntax error.";
       setCompileError(errText);
@@ -346,9 +346,10 @@ function App() {
   /* eslint-enable react-hooks/exhaustive-deps */
 
   // Sync scroll positions of the left line gutter, textarea, and highlighted pre tag
-  const handleScroll = (e) => {
-    const scrollTop = e.target.scrollTop;
-    const scrollLeft = e.target.scrollLeft;
+  const handleScroll = (e: UIEvent<HTMLTextAreaElement>) => {
+    const target = e.target as HTMLTextAreaElement;
+    const scrollTop = target.scrollTop;
+    const scrollLeft = target.scrollLeft;
     if (gutterRef.current) {
       gutterRef.current.scrollTop = scrollTop;
     }
@@ -359,10 +360,10 @@ function App() {
   };
 
   // Intercept Tab key in the editor text area to insert four spaces
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Tab') {
       e.preventDefault();
-      const textarea = e.target;
+      const textarea = e.target as HTMLTextAreaElement;
       const { selectionStart, selectionEnd, value } = textarea;
       
       const tabSpaces = '    '; // Four spaces for standard indentation
@@ -378,7 +379,7 @@ function App() {
   };
 
   // Toggle Language Helper
-  const changeLanguage = (lang) => {
+  const changeLanguage = (lang: string) => {
     playClick();
     setLanguage(lang);
     localStorage.setItem('mermaid_ninja_lang', lang);
@@ -401,7 +402,7 @@ function App() {
   };
 
   // Save journey codes as user types
-  const handleCodeChange = (val) => {
+  const handleCodeChange = (val: string) => {
     setCurrentCode(val);
     if (activeTab === 'journey') {
       const updated = { ...journeyCodes, [currentLevel]: val };
@@ -411,8 +412,6 @@ function App() {
       setSandboxCode(val);
     }
   };
-
-
 
   // Reset starter code
   const resetToStarter = () => {
@@ -428,7 +427,7 @@ function App() {
   };
 
   // Show dynamic banner notifications
-  const showToast = (msg) => {
+  const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
@@ -436,7 +435,7 @@ function App() {
   };
 
   // Copy to clipboard
-  const copyToClipboard = async (text, label, toastKey) => {
+  const copyToClipboard = async (text: string, _label: string, toastKey: string) => {
     playClick();
     try {
       await navigator.clipboard.writeText(text);
@@ -448,10 +447,10 @@ function App() {
   };
 
   // Switch sandbox templates
-  const applySandboxTemplate = (type) => {
+  const applySandboxTemplate = (type: string) => {
     playClick();
     setSandboxTemplate(type);
-    let template;
+    let template: string;
     switch (type) {
       case 'flowchart':
         template = `graph TD
@@ -513,12 +512,12 @@ function App() {
   };
 
   // Creator Form Helpers
-  const addValidationRule = (type) => {
+  const addValidationRule = (type: ValidationRule['type']) => {
     playClick();
     const nextIndex = creatorRules.length + 1;
     const hintKey = `rule_${nextIndex}_failed`;
     
-    let defaultRuleObj = {
+    let defaultRuleObj: ValidationRule = {
       type,
       hintKey,
       enHint: `Sensei says: Make sure to satisfy the validation check for ${type}!`,
@@ -544,13 +543,13 @@ function App() {
     setCreatorRules([...creatorRules, defaultRuleObj]);
   };
 
-  const updateRuleField = (index, field, value) => {
+  const updateRuleField = (index: number, field: keyof ValidationRule, value: any) => {
     const updated = [...creatorRules];
-    updated[index][field] = value;
+    (updated[index] as any)[field] = value;
     setCreatorRules(updated);
   };
 
-  const removeRule = (index) => {
+  const removeRule = (index: number) => {
     playClick();
     const updated = creatorRules.filter((_, idx) => idx !== index);
     const normalized = updated.map((rule, idx) => ({
@@ -571,44 +570,44 @@ function App() {
     
     // Parse rules
     const processedRules = creatorRules.map((rule) => {
-      const parsed = {
+      const parsed: ValidationRule = {
         type: rule.type,
         hintKey: rule.hintKey
       };
       
       if (rule.type === 'contains_any' || rule.type === 'contains_all') {
-        parsed.keywords = rule.keywordsStr.split(',').map(k => k.trim()).filter(Boolean);
+        parsed.keywords = rule.keywordsStr ? rule.keywordsStr.split(',').map(k => k.trim()).filter(Boolean) : [];
       } else if (rule.type === 'not_contains') {
-        parsed.keyword = rule.keyword.trim();
+        parsed.keyword = rule.keyword ? rule.keyword.trim() : '';
       } else if (rule.type === 'node_defined') {
-        parsed.nodeId = rule.nodeId.trim();
-        parsed.nodeLabel = rule.nodeLabel.trim();
+        parsed.nodeId = rule.nodeId ? rule.nodeId.trim() : '';
+        parsed.nodeLabel = rule.nodeLabel ? rule.nodeLabel.trim() : '';
       } else if (rule.type === 'connection') {
-        parsed.from = rule.from.trim();
-        parsed.to = rule.to.trim();
+        parsed.from = rule.from ? rule.from.trim() : '';
+        parsed.to = rule.to ? rule.to.trim() : '';
       } else if (rule.type === 'connection_labeled') {
-        parsed.from = rule.from.trim();
-        parsed.to = rule.to.trim();
-        parsed.label = rule.label.trim();
+        parsed.from = rule.from ? rule.from.trim() : '';
+        parsed.to = rule.to ? rule.to.trim() : '';
+        parsed.label = rule.label ? rule.label.trim() : '';
       }
       
       return parsed;
     });
     
     // Tips mapping
-    const tipsEn = {};
-    const tipsDe = {};
+    const tipsEn: Record<string, string> = {};
+    const tipsDe: Record<string, string> = {};
     creatorRules.forEach((rule) => {
-      tipsEn[rule.hintKey] = rule.enHint;
-      tipsDe[rule.hintKey] = rule.deHint;
+      if (rule.enHint) tipsEn[rule.hintKey] = rule.enHint;
+      if (rule.deHint) tipsDe[rule.hintKey] = rule.deHint;
     });
     
-    const newChallenge = {
+    const newChallenge: Challenge = {
       level: nextLevelNum,
       isCustom: true,
       beltEmoji: creatorBeltEmoji,
       badgeEmoji: creatorBadgeEmoji,
-      xpReward: parseInt(creatorXpReward, 10) || 100,
+      xpReward: creatorXpReward || 100,
       starterCode: creatorStarterCode,
       en: {
         name: creatorNameEn,
@@ -616,7 +615,7 @@ function App() {
         story: creatorStoryEn,
         mission: creatorMissionEn,
         tips: tipsEn,
-        checklist: creatorRules.map(r => r.enHint),
+        checklist: creatorRules.map(r => r.enHint || ''),
         spickzettel: []
       },
       de: {
@@ -625,7 +624,7 @@ function App() {
         story: creatorStoryDe,
         mission: creatorMissionDe,
         tips: tipsDe,
-        checklist: creatorRules.map(r => r.deHint),
+        checklist: creatorRules.map(r => r.deHint || ''),
         spickzettel: []
       },
       rules: processedRules
@@ -651,7 +650,7 @@ function App() {
     setActiveTab('journey');
   };
 
-  const exportChallenge = (challenge) => {
+  const exportChallenge = (challenge: Challenge) => {
     playClick();
     // Exclude functional validate check since it does not serialize
     const exportable = { ...challenge };
@@ -667,13 +666,13 @@ function App() {
     showToast(language === 'en' ? "Challenge schema exported successfully!" : "Challenge-Schema erfolgreich exportiert!");
   };
 
-  const handleImportJson = (e) => {
+  const handleImportJson = (e: ChangeEvent<HTMLInputElement>) => {
     playClick();
     const fileReader = new FileReader();
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     
-    fileReader.onload = (event) => {
+    fileReader.onload = (event: any) => {
       try {
         const imported = JSON.parse(event.target.result);
         
@@ -683,7 +682,7 @@ function App() {
         }
         
         const nextLevelNum = CHALLENGES.length + customChallenges.length + 1;
-        const newChallenge = {
+        const newChallenge: Challenge = {
           ...imported,
           level: nextLevelNum,
           isCustom: true
@@ -693,7 +692,7 @@ function App() {
         setCustomChallenges(updated);
         localStorage.setItem('mermaid_ninja_custom_challenges', JSON.stringify(updated));
         
-        showToast(language === 'en' ? `Challenge "${newChallenge.en.name}" imported as Level ${nextLevelNum}!` : `Challenge "${newChallenge[language]?.name}" als Level ${nextLevelNum} importiert!`);
+        showToast(language === 'en' ? `Challenge "${newChallenge.en?.name}" imported as Level ${nextLevelNum}!` : `Challenge "${newChallenge[language as 'en' | 'de']?.name}" als Level ${nextLevelNum} importiert!`);
         setCurrentLevel(nextLevelNum);
         localStorage.setItem('mermaid_ninja_level', nextLevelNum.toString());
         setActiveTab('journey');
@@ -786,7 +785,7 @@ function App() {
   };
 
   // Quick navigation helper
-  const selectLevelDirectly = (lvl) => {
+  const selectLevelDirectly = (lvl: number) => {
     playClick();
     const maxUnlocked = completedLevels.length + 1;
     if (lvl <= maxUnlocked) {
@@ -808,10 +807,10 @@ function App() {
   const activeChallenge = ALL_CHALLENGES[currentLevel - 1];
   const isCustomLevel = activeChallenge && activeChallenge.isCustom;
   const checklistItems = isCustomLevel
-    ? (activeChallenge[language]?.checklist || activeChallenge['en']?.checklist || [])
+    ? (activeChallenge[language as 'en' | 'de']?.checklist || activeChallenge['en']?.checklist || [])
     : (TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.checklist || []);
   const spickzettelItems = isCustomLevel
-    ? (activeChallenge[language]?.spickzettel || activeChallenge['en']?.spickzettel || [])
+    ? (activeChallenge[language as 'en' | 'de']?.spickzettel || activeChallenge['en']?.spickzettel || [])
     : (TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.spickzettel || []);
 
   return (
@@ -1017,7 +1016,7 @@ function App() {
               
               <div className="instructions-card-header" style={{ marginTop: '1.25rem', color: 'var(--accent-gold)' }}>{t('gradeReqs')}</div>
               <div className="mission-checklist">
-                {checklistItems.map((item, idx) => {
+                {checklistItems.map((item: string, idx: number) => {
                   const isCompleted = completedLevels.includes(currentLevel);
                   return (
                     <div key={idx} className={`checklist-item ${isCompleted ? 'done' : ''}`}>
@@ -1040,7 +1039,7 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {spickzettelItems.map((s, idx) => (
+                  {spickzettelItems.map((s: any, idx: number) => (
                     <tr key={idx}>
                       <td><code className="spickzettel-code">{s.syntax}</code></td>
                       <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{s.desc}</td>
@@ -1663,7 +1662,7 @@ function App() {
                 <input 
                   type="number" 
                   value={creatorXpReward}
-                  onChange={(e) => setCreatorXpReward(e.target.value)}
+                  onChange={(e) => setCreatorXpReward(parseInt(e.target.value, 10) || 0)}
                   placeholder="100"
                   className="spickzettel-pre"
                   style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none' }}
@@ -1691,7 +1690,7 @@ function App() {
                 </span>
                 
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  {['contains_any', 'contains_all', 'not_contains', 'node_defined', 'connection', 'connection_labeled'].map((type) => (
+                  {(['contains_any', 'contains_all', 'not_contains', 'node_defined', 'connection', 'connection_labeled'] as const).map((type) => (
                     <button 
                       key={type}
                       onClick={() => addValidationRule(type)}
@@ -1976,7 +1975,7 @@ function App() {
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
                         <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
-                          Level {ch.level}: {ch[language]?.name || ch.en?.name}
+                          Level {ch.level}: {ch[language as 'en' | 'de']?.name || ch.en?.name}
                         </span>
                         <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
                           {ch.badgeEmoji} {ch.xpReward} XP

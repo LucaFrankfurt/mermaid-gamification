@@ -1,11 +1,12 @@
 // 100% Offline-First Sound Synthesizer using Native Web Audio API
 // Generates nostalgic 8-bit game style sound effects.
 
-let audioCtx = null;
+let audioCtx: AudioContext | null = null;
 
-function getAudioContext() {
+function getAudioContext(): AudioContext {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    audioCtx = new AudioContextClass();
   }
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
@@ -16,7 +17,7 @@ function getAudioContext() {
 /**
  * Play a quick positive synth beep (Success validation)
  */
-export function playSuccess() {
+export function playSuccess(): void {
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -47,7 +48,7 @@ export function playSuccess() {
 /**
  * Play a low warning buzz (Validation fail or compilation error)
  */
-export function playFailure() {
+export function playFailure(): void {
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -75,7 +76,7 @@ export function playFailure() {
 /**
  * Play a grand level-up fanfare
  */
-export function playLevelUp() {
+export function playLevelUp(): void {
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -115,7 +116,7 @@ export function playLevelUp() {
 /**
  * Subtle button click pop
  */
-export function playClick() {
+export function playClick(): void {
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;

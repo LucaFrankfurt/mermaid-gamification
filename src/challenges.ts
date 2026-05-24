@@ -2,21 +2,75 @@
 // Houses only configuration parameters, starter codes, and automated code checkers.
 // All visible string descriptions, checklists, and error hints are resolved modularly from i18n files.
 
+export interface ValidationResult {
+  success: boolean;
+  hintKey?: string;
+}
+
+export interface ValidationRule {
+  type: 'contains_any' | 'contains_all' | 'not_contains' | 'node_defined' | 'connection' | 'connection_labeled' | 'regex' | 'git_branch' | 'git_checkout' | 'git_merge';
+  hintKey: string;
+  keywords?: string[];
+  keyword?: string;
+  nodeId?: string;
+  nodeLabel?: string;
+  from?: string;
+  to?: string;
+  label?: string;
+  pattern?: string;
+  flags?: string;
+  branch?: string;
+  keywordsStr?: string;
+  enHint?: string;
+  deHint?: string;
+}
+
+export interface Challenge {
+  level: number;
+  beltEmoji: string;
+  badgeEmoji: string;
+  xpReward: number;
+  starterCode: string;
+  validate?: (code: string) => ValidationResult;
+  rules?: ValidationRule[];
+  isCustom?: boolean;
+  en?: {
+    name: string;
+    badgeName: string;
+    story: string;
+    mission: string;
+    checklist?: string[];
+    spickzettel?: Array<{ syntax: string; desc: string }>;
+    hint?: Record<string, string>;
+    tips?: Record<string, string>;
+  };
+  de?: {
+    name: string;
+    badgeName: string;
+    story: string;
+    mission: string;
+    checklist?: string[];
+    spickzettel?: Array<{ syntax: string; desc: string }>;
+    hint?: Record<string, string>;
+    tips?: Record<string, string>;
+  };
+}
+
 // Helper to check connections while ignoring node label brackets and custom inline shapes
-const hasConnection = (clean, from, to) => {
+export const hasConnection = (clean: string, from: string, to: string): boolean => {
   const regexStr = from + "(?:\\[[^\\]]*\\]|\\([^)]*\\)|{[^}]*})?--+>(?:\\|[^|]*\\|)?(?:\\[[^\\]]*\\]|\\([^)]*\\)|{[^}]*})?" + to;
   const regex = new RegExp(regexStr, 'i');
   return regex.test(clean);
 };
 
 // Helper to check labeled connections supporting arrow labels like -->|label| and --label-->
-const hasConnectionWithLabel = (clean, from, to, label) => {
+export const hasConnectionWithLabel = (clean: string, from: string, to: string, label: string): boolean => {
   const regexStr = from + "(?:\\[[^\\]]*\\]|\\([^)]*\\)|{[^}]*})?(?:--+>\\|?" + label + "\\|?|--+" + label + "--+>)(?:\\[[^\\]]*\\]|\\([^)]*\\)|{[^}]*})?" + to;
   const regex = new RegExp(regexStr, 'i');
   return regex.test(clean);
 };
 
-export const CHALLENGES = [
+export const CHALLENGES: Challenge[] = [
   {
     level: 1,
     beltEmoji: "⬜",
@@ -27,7 +81,7 @@ export const CHALLENGES = [
     %% Sensei Hint: Complete the chain below!
     %% Make PressButton point to FillCup, and FillCup point to Enjoy.
 `,
-    validate: (code) => {
+    validate: (code: string): ValidationResult => {
       const clean = code.trim().replace(/\s+/g, '');
       const lower = code.toLowerCase();
       
@@ -72,7 +126,7 @@ export const CHALLENGES = [
     %% Example: IsItOnFloor -->|Yes| UnderDesk[Look under the desk]
     %% Remember to connect both UnderDesk and CheckBin back to Found[Secret Password Recovered]!
 `,
-    validate: (code) => {
+    validate: (code: string): ValidationResult => {
       const clean = code.trim().replace(/\s+/g, '');
       const lower = code.toLowerCase();
 
@@ -120,7 +174,7 @@ export const CHALLENGES = [
     
     %% Sensei Hint: Connect the external AppServer to the internal db database here!
 `,
-    validate: (code) => {
+    validate: (code: string): ValidationResult => {
       const clean = code.trim().replace(/\s+/g, '');
       const lower = code.toLowerCase();
 
@@ -162,7 +216,7 @@ export const CHALLENGES = [
     %% 3. Espresso_API replies with dotted arrow (-->>) to HR_Gateway: "Yes, double shot"
     %% 4. HR_Gateway replies with dotted arrow to Employee: "Access Granted"
 `,
-    validate: (code) => {
+    validate: (code: string): ValidationResult => {
       const clean = code.trim().replace(/\s+/g, '');
       const lower = code.toLowerCase();
 
@@ -180,10 +234,10 @@ export const CHALLENGES = [
       const hasStep2 = /HR_Gateway->+>Espresso_API:.*?had.*?espresso/i.test(clean);
       if (!hasStep2) return { success: false, hintKey: "step2" };
 
-      const hasStep3 = /Espresso_API--+>HR_Gateway:.*?double.*?shot/i.test(clean);
+      const hasStep3 = /Espresso_API--+>>?HR_Gateway:.*?double.*?shot/i.test(clean);
       if (!hasStep3) return { success: false, hintKey: "step3" };
 
-      const hasStep4 = /HR_Gateway--+>Employee:.*?Access.*?Granted/i.test(clean) || /HR_Gateway->+>Employee:.*?Access.*?Granted/i.test(clean);
+      const hasStep4 = /HR_Gateway--+>>?Employee:.*?Access.*?Granted/i.test(clean) || /HR_Gateway->+>Employee:.*?Access.*?Granted/i.test(clean);
       if (!hasStep4) return { success: false, hintKey: "step4" };
 
       return { success: true };
@@ -203,7 +257,7 @@ export const CHALLENGES = [
     %% 4. Checkout 'main'
     %% 5. Merge 'hotfix' back into 'main'
 `,
-    validate: (code) => {
+    validate: (code: string): ValidationResult => {
       const clean = code.trim().replace(/\s+/g, '');
       const lower = code.toLowerCase();
 
@@ -239,7 +293,7 @@ export const CHALLENGES = [
 ];
 
 // Declarative Validation Engine for Custom Challenges
-export const runDeclarativeValidation = (code, rules) => {
+export const runDeclarativeValidation = (code: string, rules?: ValidationRule[]): ValidationResult => {
   if (!rules || !Array.isArray(rules)) return { success: true };
   
   const clean = code.trim().replace(/\s+/g, '');
@@ -247,11 +301,13 @@ export const runDeclarativeValidation = (code, rules) => {
   
   for (const rule of rules) {
     if (rule.type === 'contains_any') {
+      if (!rule.keywords) continue;
       const match = rule.keywords.some(kw => lower.includes(kw.toLowerCase().trim()));
       if (!match) return { success: false, hintKey: rule.hintKey };
     }
     
     else if (rule.type === 'contains_all') {
+      if (!rule.keywords) continue;
       for (const kw of rule.keywords) {
         if (!lower.includes(kw.toLowerCase().trim())) {
           return { success: false, hintKey: rule.hintKey };
@@ -260,13 +316,13 @@ export const runDeclarativeValidation = (code, rules) => {
     }
     
     else if (rule.type === 'not_contains') {
-      if (lower.includes(rule.keyword.toLowerCase().trim())) {
+      if (rule.keyword && lower.includes(rule.keyword.toLowerCase().trim())) {
         return { success: false, hintKey: rule.hintKey };
       }
     }
     
     else if (rule.type === 'node_defined') {
-      const id = rule.nodeId.trim();
+      const id = rule.nodeId ? rule.nodeId.trim() : '';
       const text = rule.nodeLabel ? rule.nodeLabel.toLowerCase().trim() : '';
       
       // Node ID must exist
@@ -281,16 +337,19 @@ export const runDeclarativeValidation = (code, rules) => {
     }
     
     else if (rule.type === 'connection') {
+      if (!rule.from || !rule.to) continue;
       const hasLink = hasConnection(clean, rule.from.trim(), rule.to.trim());
       if (!hasLink) return { success: false, hintKey: rule.hintKey };
     }
     
     else if (rule.type === 'connection_labeled') {
+      if (!rule.from || !rule.to || !rule.label) continue;
       const hasLink = hasConnectionWithLabel(clean, rule.from.trim(), rule.to.trim(), rule.label.trim());
       if (!hasLink) return { success: false, hintKey: rule.hintKey };
     }
     
     else if (rule.type === 'regex') {
+      if (!rule.pattern) continue;
       try {
         const rx = new RegExp(rule.pattern, rule.flags || 'i');
         if (!rx.test(code)) {
@@ -303,6 +362,7 @@ export const runDeclarativeValidation = (code, rules) => {
     }
     
     else if (rule.type === 'git_branch') {
+      if (!rule.branch) continue;
       const br = rule.branch.replace(/\s+/g, '');
       if (!clean.includes(`branch${br}`) && !clean.includes(`branch"${br}"`)) {
         return { success: false, hintKey: rule.hintKey };
@@ -310,6 +370,7 @@ export const runDeclarativeValidation = (code, rules) => {
     }
     
     else if (rule.type === 'git_checkout') {
+      if (!rule.branch) continue;
       const br = rule.branch.replace(/\s+/g, '');
       if (!clean.includes(`checkout${br}`) && !clean.includes(`checkout"${br}"`)) {
         return { success: false, hintKey: rule.hintKey };
@@ -317,6 +378,7 @@ export const runDeclarativeValidation = (code, rules) => {
     }
     
     else if (rule.type === 'git_merge') {
+      if (!rule.branch) continue;
       const br = rule.branch.replace(/\s+/g, '');
       if (!clean.includes(`merge${br}`) && !clean.includes(`merge"${br}"`)) {
         return { success: false, hintKey: rule.hintKey };
@@ -328,7 +390,7 @@ export const runDeclarativeValidation = (code, rules) => {
 };
 
 // Unified validation handler routing
-export const validateChallenge = (challenge, code) => {
+export const validateChallenge = (challenge: Challenge, code: string): ValidationResult => {
   if (challenge.validate) {
     return challenge.validate(code);
   }

@@ -18,7 +18,7 @@ Corporate workflows are often bogged down by static, mouse-heavy drawing tools (
 
 ## 🛠️ Key Technical Features
 
-### 1. Retro 8-Bit Audio-Synthesizer (`soundEffects.js`)
+### 1. Retro 8-Bit Audio-Synthesizer (`soundEffects.ts`)
 To provide tactile, nostalgic gamification feedback without bloating the application with audio files, we engineered a native **Web Audio API synthesizer**:
 - **Zero Asset Downloads**: Oscillators generate retro sound effects programmatically.
 - **Dynamic Chords**: Supports high-fidelity audio feedback for **Click**, **Success (level-up fanfares)**, **Error (dull tone)**, and **Claiming Badges**.
@@ -31,8 +31,8 @@ An advanced text editor built from scratch without bulky external packages (like
 - **Line Wrap Toggle**: A stateful button dynamically sets `white-space: pre-wrap` and hides the gutter numbers to prevent misalignment when long labels wrap.
 
 ### 3. Decoupled Gamification Engine
-- **Logical Rules (`challenges.js`)**: Technical criteria and checks are decoupled from UI localization copies. They evaluate code strings and return semantic result keys.
-- **Dynamic Localization Lookup**: The application takes logical keys (e.g., `hintKey: "link1"`) and dynamically matches them to localized tips (`challenges.level1.hint.link1`) from English (`en.js`) or German (`de.js`) modules.
+- **Logical Rules (`challenges.ts`)**: Technical criteria and checks are decoupled from UI localization copies. They evaluate code strings and return semantic result keys.
+- **Dynamic Localization Lookup**: The application takes logical keys (e.g., `hintKey: "link1"`) and dynamically matches them to localized tips (`challenges.level1.hint.link1`) from English (`en.ts`) or German (`de.ts`) modules.
 
 ---
 
@@ -45,15 +45,16 @@ mermaid-gamification/
 ├── package.json            # Node project configuration
 ├── vite.config.js          # Vite assets compiler settings
 ├── src/
-│   ├── main.jsx            # React root mount script
-│   ├── App.jsx             # Core Dojo app shell, layout controller & UI views
+│   ├── main.tsx            # React root mount script
+│   ├── App.tsx             # Core Dojo app shell, layout controller & UI views
 │   ├── index.css           # Premium Warm-Cream & Coffee-Charcoal Design System
-│   ├── challenges.js       # Curriculum criteria check code (Logical rules)
-│   ├── soundEffects.js     # Native Web Audio API programatic sound synths
+│   ├── challenges.ts       # Curriculum criteria check code (Logical rules)
+│   ├── challenges.test.ts  # Vitest unit test suite (16 tests verifying Levels 1-5 & validators)
+│   ├── soundEffects.ts     # Native Web Audio API programatic sound synths
 │   └── i18n/               # Multi-language translation packs
-│       ├── en.js           # English dictionaries (Challenges & UI strings)
-│       ├── de.js           # German dictionaries (Challenges & UI strings)
-│       └── i18n.js         # Dictionary compiler configuration
+│       ├── en.ts           # English dictionaries (Challenges & UI strings)
+│       ├── de.ts           # German dictionaries (Challenges & UI strings)
+│       └── i18n.ts         # Dictionary compiler configuration
 ```
 
 ---
@@ -100,6 +101,17 @@ npm run build
 ```
 Vite compiles and outputs the production bundle into the `dist/` directory in under a second. The resulting package contains **zero** external network dependencies.
 
+### 4. Run Automated Test Suite
+Verify diagram validations, connection parser rules, and the five curriculum levels offline:
+```bash
+npm run test
+```
+
+To run the test suite in watch mode while making changes:
+```bash
+npm run test:watch
+```
+
 ---
 
 ## 🌎 Localization System (i18n)
@@ -107,18 +119,18 @@ Vite compiles and outputs the production bundle into the `dist/` directory in un
 Adding new language translations is incredibly straightforward. Simply create or update files inside the `src/i18n/` folder.
 
 All UI strings and technical challenge tips must be added to both language files to prevent fallback mismatches:
-- **English**: `src/i18n/en.js`
-- **German**: `src/i18n/de.js`
+- **English**: `src/i18n/en.ts`
+- **German**: `src/i18n/de.ts`
 
 Example insertion of a new UI translation key:
-```javascript
-// src/i18n/en.js
+```typescript
+// src/i18n/en.ts
 export default {
   myCoolFeature: "Feature Name",
   ...
 }
 
-// src/i18n/de.js
+// src/i18n/de.ts
 export default {
   myCoolFeature: "Feature-Name",
   ...
@@ -126,7 +138,7 @@ export default {
 ```
 
 Usage in the React Components:
-```jsx
+```tsx
 <span>{t('myCoolFeature')}</span>
 ```
 
