@@ -22,18 +22,24 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+          cache-dependency-path: mermaid-gamification/package-lock.json
 
       - name: Install Dependencies
+        working-directory: mermaid-gamification
         run: npm ci
 
       - name: Run Linter / Code Style Check
+        working-directory: mermaid-gamification
         run: npm run lint --if-present
 
       - name: Execute Vitest Suite (Levels 1-5 Check)
+        working-directory: mermaid-gamification
         run: npm run test
 
       - name: Validate i18n Translation Parity
+        working-directory: mermaid-gamification
         run: npx tsx scripts/check-i18n.ts
 
       - name: Verify Production Build Compilation
+        working-directory: mermaid-gamification
         run: npm run build
