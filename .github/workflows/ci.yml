@@ -17,18 +17,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
           cache: "npm"
 
       - name: Install Dependencies
         run: npm ci
 
       - name: Run Linter / Code Style Check
-        # Assumes you have a lint script, highly recommended for team scaling
         run: npm run lint --if-present
 
       - name: Execute Vitest Suite (Levels 1-5 Check)
         run: npm run test
+
+      - name: Validate i18n Translation Parity
+        run: npx tsx scripts/check-i18n.ts
 
       - name: Verify Production Build Compilation
         run: npm run build
