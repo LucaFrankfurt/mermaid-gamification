@@ -7,9 +7,14 @@ on:
 jobs:
   register-ui:
     runs-on: ubuntu-latest
+    permissions:
+      deployments: write
+      statuses: write
+
     steps:
       - name: Update GitHub Deployment Status
         if: ${{ !env.ACT }}
+        id: deployment
         uses: bobheadxi/deployments@v1
         with:
           step: start
@@ -23,4 +28,6 @@ jobs:
           step: finish
           token: ${{ secrets.GITHUB_TOKEN }}
           status: success
+          env: Production
           env_url: https://paas.khaghani.dev
+          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
