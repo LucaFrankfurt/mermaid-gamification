@@ -31,7 +31,7 @@ jobs:
         run: npm run test
 
       - name: Validate i18n Translation Parity
-        run: npm run check-i18n
+        run: npx tsx scripts/check-i18n.ts
 
       - name: Verify Production Build Compilation
         run: npm run build
