@@ -1,50 +1,53 @@
 // scripts/check-i18n.ts
-import { fileURLToPath } from "url";
+import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-// Get absolute pathing relative to this script file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Explicitly resolve the paths to your i18n files
-const enPath = path.resolve(__dirname, "../src/i18n/en");
-const dePath = path.resolve(__dirname, "../src/i18n/de");
+// Resolve exact files from the root
+const enFilePath = path.resolve(__dirname, "../src/i18n/en.ts");
+const deFilePath = path.resolve(__dirname, "../src/i18n/de.ts");
 
-async function verifyTranslations() {
+function extractKeys(filePath: string): string[] {
   try {
-    const { default: en } = await import(enPath);
-    const { default: de } = await import(dePath);
+    const content = fs.readFileSync(filePath, "utf8");
+    // Match anything that looks like a key string followed by a colon
+    // e.g., myKey: "value" or 'nestedKey': {
+    const keyRegex = /([\w-]+)\s*:/g;
+    const keys: string[] = [];
+    let match;
 
-    function getKeys(obj: any, prefix = ""): string[] {
-      return Object.keys(obj).reduce((res: string[], el) => {
-        if (Array.isArray(obj[el])) return res;
-        if (typeof obj[el] === "object" && obj[el] !== null) {
-          return [...res, ...getKeys(obj[el], prefix + el + ".")];
-        }
-        return [...res, prefix + el];
-      }, []);
+    while ((match = keyRegex.exec(content)) !== null) {
+      keys.push(match[1]);
     }
-
-    const enKeys = getKeys(en).sort();
-    const deKeys = getKeys(de).sort();
-
-    const missingInDe = enKeys.filter((x) => !deKeys.includes(x));
-    const missingInEn = deKeys.filter((x) => !enKeys.includes(x));
-
-    if (missingInDe.length || missingInEn.length) {
-      if (missingInDe.length)
-        console.error("❌ Keys missing in German (de.ts):", missingInDe);
-      if (missingInEn.length)
-        console.error("❌ Keys missing in English (en.ts):", missingInEn);
-      process.exit(1);
-    } else {
-      console.log("✅ Translation packs are perfectly synchronized!");
-      process.exit(0);
-    }
-  } catch (error) {
-    console.error("❌ Failed to load translation modules:", error);
+    return keys.sort();
+  } catch (err) {
+    console.error(`❌ Failed to read file at ${filePath}`, err);
     process.exit(1);
   }
 }
 
-verifyTranslations();
+const enKeys = extractKeys(enFilePath);
+const deKeys = extractKeys(deFilePath);
+
+const missingInDe = enKeys.filter((x) => !deKeys.includes(x));
+const missingInEn = deKeys.filter((x) => !enKeys.includes(x));
+
+console.log(
+  `📊 Scanned translation keys. Found ${enKeys.length} in English, ${deKeys.length} in German.`,
+);
+
+if (missingInDe.length || missingInEn.length) {
+  if (missingInDe.length)
+    console.error("❌ Keys missing in German (de.ts):", missingInDe);
+  if (missingInEn.length)
+    console.error("❌ Keys missing in English (en.ts):", missingInEn);
+  process.exit(1);
+} else {
+  console.log(
+    "✅ Sensei Approval: Translation packs are perfectly synchronized!",
+  );
+  process.exit(0);
+}
