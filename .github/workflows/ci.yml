@@ -6,12 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   verify-dojo:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Code
@@ -33,7 +31,7 @@ jobs:
         run: npm run test
 
       - name: Validate i18n Translation Parity
-        run: npx tsx scripts/check-i18n.ts
+        run: npm run check-i18n
 
       - name: Verify Production Build Compilation
         run: npm run build
