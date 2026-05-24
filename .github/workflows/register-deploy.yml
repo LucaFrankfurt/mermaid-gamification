@@ -29,5 +29,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: success
           env: Production
-          env_url: https://paas.khaghani.dev
+          env_url: https://mermaid-challenge.khaghani.dev/
           deployment_id: ${{ steps.deployment.outputs.deployment_id }}
