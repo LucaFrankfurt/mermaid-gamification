@@ -51,6 +51,7 @@ export default {
   toastSvgCopied: "Diagram SVG XML copied to clipboard!",
   toastTemplateLoaded: "Loaded template!",
   syntaxAlertTitle: "Compiler Syntax Alert",
+  lineWrap: "Line Wrap",
 
   // Localized curriculum challenges data
   challenges: {

@@ -20,13 +20,15 @@ import {
   ArrowRight,
   Flame,
   ChevronDown,
-  Info
+  Info,
+  Sun,
+  Moon
 } from 'lucide-react';
 
-// Initialize Mermaid with stunning default styles that match our dark/neon vibe
+// Initialize Mermaid with clean light-theme styles that match our warm cream vibe
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'dark',
+  theme: 'neutral',
   securityLevel: 'loose',
   flowchart: {
     useMaxWidth: true,
@@ -34,15 +36,19 @@ mermaid.initialize({
     curve: 'basis'
   },
   themeVariables: {
-    primaryColor: '#1e1e38',
-    primaryBorderColor: '#8b5cf6',
-    primaryTextColor: '#f3f4f6',
-    lineColor: '#0df5d6',
+    primaryColor: '#ffffff',
+    primaryBorderColor: '#201515',
+    primaryTextColor: '#201515',
+    lineColor: '#ff4f00',
     transitionDuration: '0.3s',
-    actorBkg: '#1e1e38',
-    actorBorder: '#8b5cf6',
-    signalColor: '#0df5d6',
-    signalTextColor: '#f3f4f6'
+    actorBkg: '#ffffff',
+    actorBorder: '#201515',
+    actorTextColor: '#201515',
+    signalColor: '#ff4f00',
+    signalTextColor: '#201515',
+    labelBoxBkgColor: '#fffefb',
+    labelBoxBorderColor: '#e6e0d5',
+    labelTextColor: '#201515'
   }
 });
 
@@ -128,6 +134,8 @@ function App() {
   const [xp, setXp] = useState(0);
   const [completedLevels, setCompletedLevels] = useState([]);
   const [journeyCodes, setJourneyCodes] = useState({});
+  const [wordWrap, setWordWrap] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   
   // Sandbox State
   const [sandboxCode, setSandboxCode] = useState(`graph TD
@@ -174,6 +182,7 @@ function App() {
       const savedCompleted = localStorage.getItem('mermaid_ninja_completed');
       const savedCodes = localStorage.getItem('mermaid_ninja_codes');
       const savedLang = localStorage.getItem('mermaid_ninja_lang');
+      const savedTheme = localStorage.getItem('mermaid_ninja_theme');
 
       if (savedLevel) setCurrentLevel(parseInt(savedLevel, 10));
       if (savedXp) setXp(parseInt(savedXp, 10));
@@ -183,6 +192,14 @@ function App() {
         setJourneyCodes(parsed);
       }
       if (savedLang) setLanguage(savedLang);
+      
+      if (savedTheme === 'dark') {
+        setDarkMode(true);
+        document.body.classList.add('dark-theme');
+      } else {
+        setDarkMode(false);
+        document.body.classList.remove('dark-theme');
+      }
     } catch (e) {
       console.error("Could not load progress from localStorage", e);
     }
@@ -260,6 +277,21 @@ function App() {
     setLanguage(lang);
     localStorage.setItem('mermaid_ninja_lang', lang);
     showToast(lang === 'en' ? "Language set to English!" : "Sprache auf Deutsch umgestellt!");
+  };
+
+  // Toggle Theme Helper
+  const toggleTheme = () => {
+    playClick();
+    const nextTheme = !darkMode;
+    setDarkMode(nextTheme);
+    localStorage.setItem('mermaid_ninja_theme', nextTheme ? 'dark' : 'light');
+    if (nextTheme) {
+      document.body.classList.add('dark-theme');
+      showToast(language === 'en' ? "Dark Mode activated!" : "Dunkler Modus aktiviert!");
+    } else {
+      document.body.classList.remove('dark-theme');
+      showToast(language === 'en' ? "Light Mode activated!" : "Heller Modus aktiviert!");
+    }
   };
 
   // Save journey codes as user types
@@ -504,7 +536,19 @@ function App() {
       {/* 1. DOJO HEADER & SCOREBOARD */}
       <header className="dojo-header glass-panel">
         <div className="brand-section">
-          <span className="brand-icon">🥷</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', transform: 'translateY(-2px)' }}>
+            <svg width="45" height="45" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 0 8px var(--accent-teal))', animation: 'float 3.5s ease-in-out infinite' }}>
+              <path d="M50,12 L58,37 L85,39 L65,56 L72,83 L50,68 L28,83 L35,56 L15,39 L42,37 Z" fill="url(#brandGrad)" stroke="var(--accent-teal)" strokeWidth="2.5" />
+              <circle cx="50" cy="50" r="14" fill="#0d0d1e" stroke="var(--accent-violet)" strokeWidth="2" />
+              <path d="M50,42 L52,47 L57,50 L52,53 L50,58 L48,53 L43,50 L48,47 Z" fill="var(--accent-teal)" />
+              <defs>
+                <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="var(--accent-violet)" />
+                  <stop offset="100%" stopColor="var(--accent-teal)" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
           <div>
             <h1 className="gradient-text" style={{ fontSize: '2.1rem', fontWeight: 800 }}>{t('dojoTitle')}</h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
@@ -532,6 +576,35 @@ function App() {
                 🇩🇪 DE
               </button>
             </div>
+          </div>
+
+          {/* Theme Switcher Toggle button */}
+          <div className="scoreboard-item" style={{ marginRight: '0.5rem' }}>
+            <span className="scoreboard-label">Theme / Farbschema</span>
+            <button 
+              onClick={toggleTheme}
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-main)',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+                marginTop: '2px',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+              }}
+            >
+              {darkMode ? <Sun size={14} style={{ color: '#ff4f00' }} /> : <Moon size={14} style={{ color: '#201515' }} />}
+              {darkMode 
+                ? (language === 'en' ? 'Light' : 'Hell') 
+                : (language === 'en' ? 'Dark' : 'Dunkel')}
+            </button>
           </div>
 
           <div className="scoreboard-item">
@@ -622,31 +695,11 @@ function App() {
                   <button
                     key={c.level}
                     onClick={() => selectLevelDirectly(c.level)}
-                    style={{
-                      flex: '1 0 35px',
-                      height: '35px',
-                      background: isCurrent 
-                        ? 'rgba(99, 102, 241, 0.25)' 
-                        : isCompleted 
-                        ? 'rgba(16, 185, 129, 0.12)' 
-                        : 'rgba(0, 0, 0, 0.25)',
-                      border: isCurrent
-                        ? '1.5px solid var(--accent-teal)'
-                        : isCompleted
-                        ? '1.5px solid #10b981'
-                        : isUnlocked
-                        ? '1px solid rgba(255, 255, 255, 0.15)'
-                        : '1px dashed rgba(255, 255, 255, 0.05)',
-                      color: isUnlocked ? 'var(--text-main)' : 'rgba(255, 255, 255, 0.25)',
-                      borderRadius: '6px',
-                      cursor: isUnlocked ? 'pointer' : 'not-allowed',
-                      fontWeight: 'bold',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s ease'
-                    }}
+                    className={`curriculum-btn ${
+                      isCurrent ? 'current' :
+                      isCompleted ? 'completed' :
+                      isUnlocked ? 'unlocked' : 'locked'
+                    }`}
                     title={t(`challenges.level${c.level}.name`)}
                     disabled={!isUnlocked}
                   >
@@ -667,7 +720,7 @@ function App() {
 
             <div className="mission-text">
               <div className="instructions-card-header" style={{ color: 'var(--accent-violet)' }}>{t('missionHeader')}</div>
-              <p style={{ fontSize: '0.9rem', color: '#e5e7eb' }}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
                 {t(`challenges.level${currentLevel}.mission`)}
               </p>
               
@@ -714,24 +767,58 @@ function App() {
                 <Code size={18} style={{ color: 'var(--accent-violet)' }} />
                 {t('editorHeader')}
               </h2>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                {lineCount} lines
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button 
+                  onClick={() => { playClick(); setWordWrap(!wordWrap); }}
+                  className={`btn-secondary ${wordWrap ? 'active' : ''}`}
+                  style={{
+                    padding: '0.25rem 0.6rem',
+                    fontSize: '0.75rem',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem'
+                  }}
+                >
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: '6px', 
+                    height: '6px', 
+                    borderRadius: '50%', 
+                    background: wordWrap ? 'var(--accent-teal)' : 'transparent', 
+                    border: '1px solid var(--accent-teal)' 
+                  }} />
+                  {t('lineWrap')}
+                </button>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {lineCount} lines
+                </div>
               </div>
             </header>
 
             <div className="editor-wrapper">
               {/* Synced scroll line numbers column */}
-              <div className="editor-gutter" ref={gutterRef}>
-                {gutterNums.map((num) => (
-                  <span key={num} className="editor-gutter-num">
-                    {num}
-                  </span>
-                ))}
-              </div>
+              {!wordWrap && (
+                <div className="editor-gutter" ref={gutterRef}>
+                  {gutterNums.map((num) => (
+                    <span key={num} className="editor-gutter-num">
+                      {num}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Layered Editor Container: transparent textarea sitting on top of pre tag */}
               <div className="editor-workspace-wrapper">
-                <pre className="code-highlight" ref={highlightRef}>
+                <pre 
+                  className="code-highlight" 
+                  ref={highlightRef}
+                  style={{
+                    whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                    wordBreak: wordWrap ? 'break-word' : 'normal',
+                    overflowWrap: wordWrap ? 'anywhere' : 'normal'
+                  }}
+                >
                   <code dangerouslySetInnerHTML={{ __html: highlightMermaid(currentCode) }} />
                 </pre>
                 
@@ -744,6 +831,11 @@ function App() {
                   className="code-textarea"
                   placeholder="Type your Mermaid code here..."
                   spellCheck="false"
+                  style={{
+                    whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                    wordBreak: wordWrap ? 'break-word' : 'normal',
+                    overflowWrap: wordWrap ? 'anywhere' : 'normal'
+                  }}
                 />
               </div>
             </div>
@@ -837,13 +929,14 @@ function App() {
                   style={{
                     padding: '0.4rem 0.8rem',
                     borderRadius: '6px',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    background: sandboxTemplate === tName ? 'rgba(99,102,241,0.2)' : 'rgba(0,0,0,0.2)',
+                    border: sandboxTemplate === tName ? '1px solid var(--accent-teal)' : '1px solid var(--border-color)',
+                    background: sandboxTemplate === tName ? 'rgba(255, 79, 0, 0.12)' : 'var(--bg-secondary)',
                     color: sandboxTemplate === tName ? 'var(--accent-teal)' : 'var(--text-muted)',
                     fontSize: '0.75rem',
                     fontWeight: 600,
                     textTransform: 'capitalize',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   {tName}
@@ -856,16 +949,26 @@ function App() {
             {/* Custom sandbox editor with gutter & live highlights */}
             <div className="editor-panel">
               <div className="editor-wrapper">
-                <div className="editor-gutter" ref={gutterRef}>
-                  {gutterNums.map((num) => (
-                    <span key={num} className="editor-gutter-num">
-                      {num}
-                    </span>
-                  ))}
-                </div>
+                {!wordWrap && (
+                  <div className="editor-gutter" ref={gutterRef}>
+                    {gutterNums.map((num) => (
+                      <span key={num} className="editor-gutter-num">
+                        {num}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 <div className="editor-workspace-wrapper">
-                  <pre className="code-highlight" ref={highlightRef}>
+                  <pre 
+                    className="code-highlight" 
+                    ref={highlightRef}
+                    style={{
+                      whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                      wordBreak: wordWrap ? 'break-word' : 'normal',
+                      overflowWrap: wordWrap ? 'anywhere' : 'normal'
+                    }}
+                  >
                     <code dangerouslySetInnerHTML={{ __html: highlightMermaid(currentCode) }} />
                   </pre>
 
@@ -877,6 +980,11 @@ function App() {
                     className="code-textarea"
                     placeholder="Draft your custom diagram code..."
                     spellCheck="false"
+                    style={{
+                      whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                      wordBreak: wordWrap ? 'break-word' : 'normal',
+                      overflowWrap: wordWrap ? 'anywhere' : 'normal'
+                    }}
                   />
                 </div>
               </div>
@@ -888,6 +996,27 @@ function App() {
                 <button onClick={() => copyToClipboard(currentCode, "Sandbox Mermaid code", "toastCodeCopied")} className="btn-secondary">
                   {t('copyMarkdownBtn')}
                 </button>
+                
+                <button 
+                  onClick={() => { playClick(); setWordWrap(!wordWrap); }}
+                  className={`btn-secondary ${wordWrap ? 'active' : ''}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem'
+                  }}
+                >
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: '6px', 
+                    height: '6px', 
+                    borderRadius: '50%', 
+                    background: wordWrap ? 'var(--accent-teal)' : 'transparent', 
+                    border: '1px solid var(--accent-teal)' 
+                  }} />
+                  {t('lineWrap')}
+                </button>
+
                 <button 
                   onClick={() => {
                     if (svgOutput) {
@@ -898,6 +1027,7 @@ function App() {
                   }} 
                   className="btn-primary"
                   disabled={!!compileError || !svgOutput}
+                  style={{ marginLeft: 'auto' }}
                 >
                   {t('copySvgBtn')}
                 </button>
@@ -942,28 +1072,17 @@ function App() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {/* Accordion 1: Flowcharts */}
-            <div style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div className="spickzettel-accordion">
               <button 
                 onClick={() => { playClick(); setActiveAccordion(activeAccordion === 0 ? null : 0); }}
-                style={{
-                  width: '100%',
-                  padding: '1.25rem',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: 'none',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  fontSize: '1rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer'
-                }}
+                className="spickzettel-accordion-trigger"
               >
                 <span>{t('refSection1')}</span>
                 <ChevronDown size={18} style={{ transform: activeAccordion === 0 ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
               </button>
               
               {activeAccordion === 0 && (
-                <div style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="spickzettel-accordion-content">
                   <table className="spickzettel-table" style={{ fontSize: '0.9rem' }}>
                     <thead>
                       <tr>
@@ -1008,28 +1127,17 @@ function App() {
             </div>
 
             {/* Accordion 2: Sequences */}
-            <div style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div className="spickzettel-accordion">
               <button 
                 onClick={() => { playClick(); setActiveAccordion(activeAccordion === 1 ? null : 1); }}
-                style={{
-                  width: '100%',
-                  padding: '1.25rem',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: 'none',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  fontSize: '1rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer'
-                }}
+                className="spickzettel-accordion-trigger"
               >
                 <span>{t('refSection2')}</span>
                 <ChevronDown size={18} style={{ transform: activeAccordion === 1 ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
               </button>
               
               {activeAccordion === 1 && (
-                <div style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="spickzettel-accordion-content">
                   <table className="spickzettel-table" style={{ fontSize: '0.9rem' }}>
                     <thead>
                       <tr>
@@ -1063,7 +1171,7 @@ function App() {
                   </table>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                     <strong>Example Structure:</strong><br />
-                    <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '4px', marginTop: '0.5rem', fontFamily: 'var(--font-mono)' }}>
+                    <pre className="spickzettel-pre">
 {`sequenceDiagram
   participant Alice
   participant Bob
@@ -1076,28 +1184,17 @@ function App() {
             </div>
 
             {/* Accordion 3: GitGraphs */}
-            <div style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div className="spickzettel-accordion">
               <button 
                 onClick={() => { playClick(); setActiveAccordion(activeAccordion === 2 ? null : 2); }}
-                style={{
-                  width: '100%',
-                  padding: '1.25rem',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: 'none',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  fontSize: '1rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer'
-                }}
+                className="spickzettel-accordion-trigger"
               >
                 <span>{t('refSection3')}</span>
                 <ChevronDown size={18} style={{ transform: activeAccordion === 2 ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
               </button>
               
               {activeAccordion === 2 && (
-                <div style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="spickzettel-accordion-content">
                   <table className="spickzettel-table" style={{ fontSize: '0.9rem' }}>
                     <thead>
                       <tr>
@@ -1149,8 +1246,29 @@ function App() {
       {/* 4. SENSEI SPEECH CONSOLE BANNER */}
       <footer className="sensei-console">
         <div className="sensei-avatar-wrapper">
-          <div className="sensei-avatar">🥷</div>
-          <div className="sensei-label">{language === 'en' ? 'Mermaid Sensei' : 'Mermaid-Sensei'}</div>
+          <div className="sensei-avatar" style={{ border: 'none', background: 'transparent', animation: 'none', width: '75px', height: '75px' }}>
+            <svg viewBox="0 0 100 100" width="75" height="75" style={{ filter: 'drop-shadow(0 0 8px rgba(255, 79, 0, 0.35))' }}>
+              <circle cx="50" cy="50" r="46" fill="var(--bg-secondary)" stroke="var(--border-color)" strokeWidth="1" />
+              <circle cx="50" cy="50" r="38" fill="none" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="2, 2" />
+              
+              <circle cx="50" cy="50" r="44" fill="none" stroke="var(--accent-teal)" strokeWidth="1.5" strokeDasharray="6, 6" style={{ transformOrigin: '50% 50%', animation: 'rotateDashed 24s linear infinite' }} />
+              
+              <path d="M26,45 C26,24 74,24 74,45 C74,70 65,78 50,83 C35,78 26,70 26,45 Z" fill="var(--accent-violet)" stroke="var(--border-color)" strokeWidth="2.5" />
+              
+              <path d="M30,35 Q50,22 70,35 L71,43 Q50,30 29,43 Z" fill="var(--accent-violet)" stroke="var(--accent-teal)" strokeWidth="1" />
+              <circle cx="50" cy="33" r="2" fill="var(--accent-teal)" />
+              
+              <path d="M32,45 C40,43 60,43 68,45 L66,49 C58,47 42,47 34,49 Z" fill="var(--accent-teal)" />
+              <circle cx="50" cy="46" r="1.5" fill="#fff" style={{ filter: 'drop-shadow(0 0 3px #fff)' }} />
+              
+              <path d="M38,58 Q50,62 62,58 L60,70 Q50,80 40,70 Z" fill="var(--bg-secondary)" stroke="var(--border-color)" strokeWidth="1" />
+              
+              <line x1="46" y1="61" x2="46" y2="73" stroke="var(--border-color)" strokeWidth="1" />
+              <line x1="50" y1="62" x2="50" y2="74" stroke="var(--border-color)" strokeWidth="1" />
+              <line x1="54" y1="61" x2="54" y2="73" stroke="var(--border-color)" strokeWidth="1" />
+            </svg>
+          </div>
+          <div className="sensei-label" style={{ marginTop: '0.25rem' }}>{language === 'en' ? 'Mermaid Sensei' : 'Mermaid-Sensei'}</div>
         </div>
 
         <div className="sensei-speech-bubble">
