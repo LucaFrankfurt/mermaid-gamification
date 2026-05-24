@@ -1,0 +1,34 @@
+name: Dojo Guardian CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  verify-dojo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Linter / Code Style Check
+        # Assumes you have a lint script, highly recommended for team scaling
+        run: npm run lint --if-present
+
+      - name: Execute Vitest Suite (Levels 1-5 Check)
+        run: npm run test
+
+      - name: Verify Production Build Compilation
+        run: npm run build
