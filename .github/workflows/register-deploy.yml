@@ -1,0 +1,26 @@
+name: Register Coolify Deployment
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  register-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update GitHub Deployment Status
+        if: ${{ !env.ACT }}
+        uses: bobheadxi/deployments@v1
+        with:
+          step: start
+          token: ${{ secrets.GITHUB_TOKEN }}
+          env: Production
+
+      - name: Mark as Success
+        if: ${{ !env.ACT }}
+        uses: bobheadxi/deployments@v1
+        with:
+          step: finish
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: success
+          env_url: https://paas.khaghani.dev
