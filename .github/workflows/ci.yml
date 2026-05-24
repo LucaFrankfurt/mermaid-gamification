@@ -27,8 +27,17 @@ jobs:
       - name: Run Linter / Code Style Check
         run: npm run lint --if-present
 
+      - name: TypeScript Type Check
+        run: npx tsc --noEmit
+
+      - name: Dependency Vulnerability Audit
+        run: npm audit --audit-level=high
+
       - name: Execute Vitest Suite (Levels 1-5 Check)
         run: npm run test
+
+      - name: Collect Code Coverage
+        run: npm run test -- --coverage --coverage.thresholds.lines=80 --coverage.thresholds.functions=80 --coverage.thresholds.branches=80
 
       - name: Validate i18n Translation Parity
         run: npx tsx scripts/check-i18n.ts
