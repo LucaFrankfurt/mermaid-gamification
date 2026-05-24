@@ -411,27 +411,60 @@ body::after {
   box-shadow: 0 2px 8px rgba(32, 21, 21, 0.03), inset 0 1px 0 #ffffff;
 }
 
-/* 3-Column main Grid Workspace */
+/* 2-Column main Grid Workspace with stacked Editor & Preview on the right */
 .dojo-workspace {
   display: grid;
-  grid-template-columns: 350px 1fr 1fr;
+  grid-template-columns: 350px 1fr;
+  grid-template-rows: auto auto;
   gap: 1.5rem;
   align-items: stretch;
 }
 
-@media (max-width: 1200px) {
-  .dojo-workspace {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Left Panel - Challenge Instructions */
-.challenge-panel {
+.dojo-workspace .challenge-panel {
+  grid-column: 1;
+  grid-row: 1 / span 2;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   overflow-y: auto;
-  max-height: 700px;
+  max-height: 850px;
+}
+
+.dojo-workspace .editor-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.dojo-workspace .canvas-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+@media (max-width: 1300px) {
+  .dojo-workspace {
+    grid-template-columns: 300px 1fr;
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .dojo-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .dojo-workspace .challenge-panel {
+    grid-column: 1;
+    grid-row: 1;
+    max-height: none;
+  }
+  .dojo-workspace .editor-panel {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .dojo-workspace .canvas-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
 }
 
 .challenge-title {
