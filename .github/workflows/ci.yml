@@ -9,6 +9,7 @@ on:
 jobs:
   verify-dojo:
     runs-on: ubuntu-latest
+    
     defaults:
       run:
         working-directory: ./mermaid-gamification
@@ -21,8 +22,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-          cache-dependency-path: ./mermaid-gamification/package-lock.json
+          cache: "npm" 
 
       - name: Install Dependencies
         run: npm ci
