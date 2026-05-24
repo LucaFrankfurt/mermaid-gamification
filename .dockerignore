@@ -1,0 +1,23 @@
+# Everything that doesn't need to be in the Docker build context
+node_modules
+dist
+coverage
+.git
+.github
+.gitignore
+
+# Dev tooling
+*.md
+*.log
+eslint.config.js
+tsconfig*.json
+vite.config.js
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+scripts/
+
+# Local env
+*.local
+.env*

@@ -1,0 +1,10 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mermaid-gamification:latest
+    container_name: mermaid-dojo
+    ports:
+      - "8080:80"
+    restart: unless-stopped
