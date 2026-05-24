@@ -1,21 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
-import { CHALLENGES } from './challenges.js';
+import { CHALLENGES, validateChallenge } from './challenges.js';
 import { TRANSLATIONS } from './i18n.js';
 import { playSuccess, playFailure, playLevelUp, playClick } from './soundEffects.js';
 
 // Premium lucide-react icons for UI styling
 import {
-  Play,
   CheckCircle,
   Copy,
   RotateCcw,
-  HelpCircle,
   Trophy,
   Code,
   Sparkles,
-  Lock,
-  Unlock,
   BookOpen,
   ArrowRight,
   Flame,
@@ -76,7 +72,7 @@ const highlightMermaid = (code) => {
   const strings = [];
   escaped = escaped.replace(/("[^"]*")/g, (match) => {
     strings.push(match);
-    return `__STRING_${index = strings.length - 1}__`;
+    return `__STRING_${strings.length - 1}__`;
   });
 
   // 3. Keywords
@@ -99,7 +95,7 @@ const highlightMermaid = (code) => {
   });
 
   // 5. Arrow connectors
-  const arrowRegex = /(-{2,}&gt;|==+&gt;|-\.-+&gt;|-\&gt;\&gt;|--+&gt;&gt;|-&gt;&gt;|--&gt;|--|&gt;&gt;|-\&gt;|-\.-+)/g;
+  const arrowRegex = /(-{2,}&gt;|==+&gt;|-\.-+&gt;|-&gt;&gt;|--+&gt;&gt;|-&gt;&gt;|--&gt;|--|&gt;&gt;|-&gt;|-\.-+)/g;
   escaped = escaped.replace(arrowRegex, `<span class="token-arrow">$&</span>`);
 
   // 6. Node shape labels
@@ -121,22 +117,89 @@ const highlightMermaid = (code) => {
   return escaped;
 };
 
-// Variable helper because of transpilation
-let index = 0;
-
 function App() {
   // Navigation & Locale state
   const [activeTab, setActiveTab] = useState('journey');
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState(() => {
+    try {
+      const savedLang = localStorage.getItem('mermaid_ninja_lang');
+      return savedLang || 'en';
+    } catch {
+      return 'en';
+    }
+  });
+  
+  // Custom Challenges & Combined curriculum state
+  const [customChallenges, setCustomChallenges] = useState(() => {
+    try {
+      const savedCustom = localStorage.getItem('mermaid_ninja_custom_challenges');
+      return savedCustom ? JSON.parse(savedCustom) : [];
+    } catch {
+      return [];
+    }
+  });
   
   // Game state
-  const [currentLevel, setCurrentLevel] = useState(1);
-  const [xp, setXp] = useState(0);
-  const [completedLevels, setCompletedLevels] = useState([]);
-  const [journeyCodes, setJourneyCodes] = useState({});
+  const [currentLevel, setCurrentLevel] = useState(() => {
+    try {
+      const savedLevel = localStorage.getItem('mermaid_ninja_level');
+      return savedLevel ? parseInt(savedLevel, 10) : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const [xp, setXp] = useState(() => {
+    try {
+      const savedXp = localStorage.getItem('mermaid_ninja_xp');
+      return savedXp ? parseInt(savedXp, 10) : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [completedLevels, setCompletedLevels] = useState(() => {
+    try {
+      const savedCompleted = localStorage.getItem('mermaid_ninja_completed');
+      return savedCompleted ? JSON.parse(savedCompleted) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [journeyCodes, setJourneyCodes] = useState(() => {
+    try {
+      const savedCodes = localStorage.getItem('mermaid_ninja_codes');
+      return savedCodes ? JSON.parse(savedCodes) : {};
+    } catch {
+      return {};
+    }
+  });
   const [wordWrap, setWordWrap] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      const savedTheme = localStorage.getItem('mermaid_ninja_theme');
+      return savedTheme === 'dark';
+    } catch {
+      return false;
+    }
+  });
   
+  // Creator Form States
+  const [creatorNameEn, setCreatorNameEn] = useState('');
+  const [creatorNameDe, setCreatorNameDe] = useState('');
+  const [creatorStoryEn, setCreatorStoryEn] = useState('');
+  const [creatorStoryDe, setCreatorStoryDe] = useState('');
+  const [creatorMissionEn, setCreatorMissionEn] = useState('');
+  const [creatorMissionDe, setCreatorMissionDe] = useState('');
+  const [creatorStarterCode, setCreatorStarterCode] = useState('graph TD\n    Start[Start] --> Process[Process]');
+  const [creatorBeltEmoji, setCreatorBeltEmoji] = useState('🔴');
+  const [creatorBadgeEmoji, setCreatorBadgeEmoji] = useState('🔥');
+  const [creatorBadgeNameEn] = useState('Custom Star');
+  const [creatorBadgeNameDe] = useState('Custom Stern');
+  const [creatorXpReward, setCreatorXpReward] = useState(100);
+  const [creatorRules, setCreatorRules] = useState([]);
+
+  // Combined curriculum
+  const ALL_CHALLENGES = [...CHALLENGES, ...customChallenges];
+
   // Sandbox State
   const [sandboxCode, setSandboxCode] = useState(`graph TD
     Client[📱 Web Client] -->|API Requests| Gateway[⚡ API Gateway]
@@ -164,7 +227,25 @@ function App() {
   const compileTimeoutRef = useRef(null);
 
   // Translate helper shortcut
-  const t = (key) => {
+  const t = useCallback((key) => {
+    // Check if key targets a custom challenge
+    if (key.startsWith('challenges.level')) {
+      const parts = key.split('.');
+      const levelStr = parts[1]; // e.g. "level6"
+      const levelNum = parseInt(levelStr.replace('level', ''), 10);
+      const customCh = customChallenges.find(c => c.level === levelNum);
+      if (customCh) {
+        const langData = customCh[language] || customCh['en'] || {};
+        if (parts[2] === 'name') return langData.name || '';
+        if (parts[2] === 'badgeName') return langData.badgeName || langData.name || '';
+        if (parts[2] === 'story') return langData.story || '';
+        if (parts[2] === 'mission') return langData.mission || '';
+        if (parts[2] === 'hint' && parts[3]) {
+          return (langData.tips && langData.tips[parts[3]]) || '';
+        }
+      }
+    }
+
     const parts = key.split('.');
     let current = TRANSLATIONS[language];
     for (const part of parts) {
@@ -172,32 +253,53 @@ function App() {
       current = current[part];
     }
     return current !== undefined ? current : key;
-  };
+  }, [language, customChallenges]);
+
+  // Compile Mermaid function
+  const compileMermaid = useCallback(async (code) => {
+    const renderId = 'mermaid-render-' + Math.floor(Math.random() * 1000000);
+    try {
+      // First, parse code to check syntactic validity safely
+      await mermaid.parse(code);
+      
+      // If parse succeeds, render the SVG
+      const { svg } = await mermaid.render(renderId, code);
+      setSvgOutput(svg);
+      setCompileError(null);
+      
+      // If in journey, give positive feedback
+      if (activeTab === 'journey') {
+        const isAlreadyComplete = completedLevels.includes(currentLevel);
+        if (isAlreadyComplete) {
+          setSenseiTip(t('senseiAlreadyMastered'));
+        } else {
+          setSenseiTip(t('senseiTipSuccess'));
+        }
+      }
+    } catch (err) {
+      console.warn("Mermaid renderer caught error:", err);
+      const errText = err.str || err.message || "Mermaid compilation syntax error.";
+      setCompileError(errText);
+      setSvgOutput('');
+      
+      if (activeTab === 'journey') {
+        setSenseiTip(t('senseiSpeechError'));
+      }
+    } finally {
+      const badEl = document.getElementById(renderId);
+      if (badEl) badEl.remove();
+      const badBind = document.getElementById('d' + renderId);
+      if (badBind) badBind.remove();
+    }
+  }, [activeTab, completedLevels, currentLevel, t]);
 
   // Load progress and language choice from localStorage on start
   useEffect(() => {
     try {
-      const savedLevel = localStorage.getItem('mermaid_ninja_level');
-      const savedXp = localStorage.getItem('mermaid_ninja_xp');
-      const savedCompleted = localStorage.getItem('mermaid_ninja_completed');
-      const savedCodes = localStorage.getItem('mermaid_ninja_codes');
-      const savedLang = localStorage.getItem('mermaid_ninja_lang');
       const savedTheme = localStorage.getItem('mermaid_ninja_theme');
-
-      if (savedLevel) setCurrentLevel(parseInt(savedLevel, 10));
-      if (savedXp) setXp(parseInt(savedXp, 10));
-      if (savedCompleted) setCompletedLevels(JSON.parse(savedCompleted));
-      if (savedCodes) {
-        const parsed = JSON.parse(savedCodes);
-        setJourneyCodes(parsed);
-      }
-      if (savedLang) setLanguage(savedLang);
-      
       if (savedTheme === 'dark') {
-        setDarkMode(true);
         document.body.classList.add('dark-theme');
       } else {
-        setDarkMode(false);
         document.body.classList.remove('dark-theme');
       }
     } catch (e) {
@@ -206,10 +308,11 @@ function App() {
   }, []);
 
   // Sync editor code with current level selection or active tab
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     if (activeTab === 'journey') {
       const savedCode = journeyCodes[currentLevel];
-      const initialCode = savedCode || CHALLENGES[currentLevel - 1]?.starterCode || '';
+      const initialCode = savedCode || ALL_CHALLENGES[currentLevel - 1]?.starterCode || '';
       setCurrentCode(initialCode);
       setSenseiTip(t('senseiGreeting'));
     } else if (activeTab === 'sandbox') {
@@ -219,8 +322,10 @@ function App() {
     setCompileError(null);
     setSvgOutput('');
   }, [currentLevel, activeTab, language]);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   // Debounced Mermaid renderer compilation to prevent editor lag
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (compileTimeoutRef.current) {
       clearTimeout(compileTimeoutRef.current);
@@ -238,6 +343,7 @@ function App() {
       }
     };
   }, [currentCode, language]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // Sync scroll positions of the left line gutter, textarea, and highlighted pre tag
   const handleScroll = (e) => {
@@ -306,49 +412,13 @@ function App() {
     }
   };
 
-  // Compile Mermaid function
-  const compileMermaid = async (code) => {
-    const renderId = 'mermaid-render-' + Math.floor(Math.random() * 1000000);
-    try {
-      // First, parse code to check syntactic validity safely
-      await mermaid.parse(code);
-      
-      // If parse succeeds, render the SVG
-      const { svg } = await mermaid.render(renderId, code);
-      setSvgOutput(svg);
-      setCompileError(null);
-      
-      // If in journey, give positive feedback
-      if (activeTab === 'journey') {
-        const isAlreadyComplete = completedLevels.includes(currentLevel);
-        if (isAlreadyComplete) {
-          setSenseiTip(t('senseiAlreadyMastered'));
-        } else {
-          setSenseiTip(t('senseiTipSuccess'));
-        }
-      }
-    } catch (err) {
-      console.warn("Mermaid renderer caught error:", err);
-      const errText = err.str || err.message || "Mermaid compilation syntax error.";
-      setCompileError(errText);
-      setSvgOutput('');
-      
-      if (activeTab === 'journey') {
-        setSenseiTip(t('senseiSpeechError'));
-      }
-    } finally {
-      const badEl = document.getElementById(renderId);
-      if (badEl) badEl.remove();
-      const badBind = document.getElementById('d' + renderId);
-      if (badBind) badBind.remove();
-    }
-  };
+
 
   // Reset starter code
   const resetToStarter = () => {
     playClick();
     if (activeTab === 'journey') {
-      const starter = CHALLENGES[currentLevel - 1]?.starterCode || '';
+      const starter = ALL_CHALLENGES[currentLevel - 1]?.starterCode || '';
       handleCodeChange(starter);
       showToast(t('toastReset'));
     } else if (activeTab === 'sandbox') {
@@ -372,6 +442,7 @@ function App() {
       await navigator.clipboard.writeText(text);
       showToast(t(toastKey));
     } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
       showToast("Failed to copy code.");
     }
   };
@@ -380,7 +451,7 @@ function App() {
   const applySandboxTemplate = (type) => {
     playClick();
     setSandboxTemplate(type);
-    let template = '';
+    let template;
     switch (type) {
       case 'flowchart':
         template = `graph TD
@@ -441,6 +512,212 @@ function App() {
     showToast(`${t('toastTemplateLoaded')} (${type})`);
   };
 
+  // Creator Form Helpers
+  const addValidationRule = (type) => {
+    playClick();
+    const nextIndex = creatorRules.length + 1;
+    const hintKey = `rule_${nextIndex}_failed`;
+    
+    let defaultRuleObj = {
+      type,
+      hintKey,
+      enHint: `Sensei says: Make sure to satisfy the validation check for ${type}!`,
+      deHint: `Sensei sagt: Bitte stelle sicher, dass der Validierungsschritt für ${type} erfüllt ist!`
+    };
+    
+    if (type === 'contains_any' || type === 'contains_all') {
+      defaultRuleObj.keywordsStr = '';
+    } else if (type === 'not_contains') {
+      defaultRuleObj.keyword = '';
+    } else if (type === 'node_defined') {
+      defaultRuleObj.nodeId = '';
+      defaultRuleObj.nodeLabel = '';
+    } else if (type === 'connection') {
+      defaultRuleObj.from = '';
+      defaultRuleObj.to = '';
+    } else if (type === 'connection_labeled') {
+      defaultRuleObj.from = '';
+      defaultRuleObj.to = '';
+      defaultRuleObj.label = '';
+    }
+    
+    setCreatorRules([...creatorRules, defaultRuleObj]);
+  };
+
+  const updateRuleField = (index, field, value) => {
+    const updated = [...creatorRules];
+    updated[index][field] = value;
+    setCreatorRules(updated);
+  };
+
+  const removeRule = (index) => {
+    playClick();
+    const updated = creatorRules.filter((_, idx) => idx !== index);
+    const normalized = updated.map((rule, idx) => ({
+      ...rule,
+      hintKey: `rule_${idx + 1}_failed`
+    }));
+    setCreatorRules(normalized);
+  };
+
+  const saveCustomChallenge = () => {
+    playClick();
+    if (!creatorNameEn.trim() || !creatorNameDe.trim() || !creatorStarterCode.trim()) {
+      alert(language === 'en' ? "Please fill out the Challenge Name and Starter Code!" : "Bitte fülle den Namen der Challenge und den Startcode aus!");
+      return;
+    }
+    
+    const nextLevelNum = CHALLENGES.length + customChallenges.length + 1;
+    
+    // Parse rules
+    const processedRules = creatorRules.map((rule) => {
+      const parsed = {
+        type: rule.type,
+        hintKey: rule.hintKey
+      };
+      
+      if (rule.type === 'contains_any' || rule.type === 'contains_all') {
+        parsed.keywords = rule.keywordsStr.split(',').map(k => k.trim()).filter(Boolean);
+      } else if (rule.type === 'not_contains') {
+        parsed.keyword = rule.keyword.trim();
+      } else if (rule.type === 'node_defined') {
+        parsed.nodeId = rule.nodeId.trim();
+        parsed.nodeLabel = rule.nodeLabel.trim();
+      } else if (rule.type === 'connection') {
+        parsed.from = rule.from.trim();
+        parsed.to = rule.to.trim();
+      } else if (rule.type === 'connection_labeled') {
+        parsed.from = rule.from.trim();
+        parsed.to = rule.to.trim();
+        parsed.label = rule.label.trim();
+      }
+      
+      return parsed;
+    });
+    
+    // Tips mapping
+    const tipsEn = {};
+    const tipsDe = {};
+    creatorRules.forEach((rule) => {
+      tipsEn[rule.hintKey] = rule.enHint;
+      tipsDe[rule.hintKey] = rule.deHint;
+    });
+    
+    const newChallenge = {
+      level: nextLevelNum,
+      isCustom: true,
+      beltEmoji: creatorBeltEmoji,
+      badgeEmoji: creatorBadgeEmoji,
+      xpReward: parseInt(creatorXpReward, 10) || 100,
+      starterCode: creatorStarterCode,
+      en: {
+        name: creatorNameEn,
+        badgeName: creatorBadgeNameEn,
+        story: creatorStoryEn,
+        mission: creatorMissionEn,
+        tips: tipsEn,
+        checklist: creatorRules.map(r => r.enHint),
+        spickzettel: []
+      },
+      de: {
+        name: creatorNameDe,
+        badgeName: creatorBadgeNameDe,
+        story: creatorStoryDe,
+        mission: creatorMissionDe,
+        tips: tipsDe,
+        checklist: creatorRules.map(r => r.deHint),
+        spickzettel: []
+      },
+      rules: processedRules
+    };
+    
+    const updated = [...customChallenges, newChallenge];
+    setCustomChallenges(updated);
+    localStorage.setItem('mermaid_ninja_custom_challenges', JSON.stringify(updated));
+    
+    // Reset forms
+    setCreatorNameEn('');
+    setCreatorNameDe('');
+    setCreatorStoryEn('');
+    setCreatorStoryDe('');
+    setCreatorMissionEn('');
+    setCreatorMissionDe('');
+    setCreatorStarterCode('graph TD\n    Start[Start] --> Process[Process]');
+    setCreatorRules([]);
+    
+    showToast(language === 'en' ? "Challenge created successfully!" : "Challenge erfolgreich erstellt!");
+    setCurrentLevel(nextLevelNum);
+    localStorage.setItem('mermaid_ninja_level', nextLevelNum.toString());
+    setActiveTab('journey');
+  };
+
+  const exportChallenge = (challenge) => {
+    playClick();
+    // Exclude functional validate check since it does not serialize
+    const exportable = { ...challenge };
+    delete exportable.validate;
+    
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportable, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href",     dataStr);
+    downloadAnchor.setAttribute("download", `mermaid-challenge-level-${challenge.level}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    showToast(language === 'en' ? "Challenge schema exported successfully!" : "Challenge-Schema erfolgreich exportiert!");
+  };
+
+  const handleImportJson = (e) => {
+    playClick();
+    const fileReader = new FileReader();
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    fileReader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        
+        // Sanity Check schema
+        if (!imported.en || !imported.de || !imported.rules) {
+          throw new Error("Missing required fields (en, de, rules)");
+        }
+        
+        const nextLevelNum = CHALLENGES.length + customChallenges.length + 1;
+        const newChallenge = {
+          ...imported,
+          level: nextLevelNum,
+          isCustom: true
+        };
+        
+        const updated = [...customChallenges, newChallenge];
+        setCustomChallenges(updated);
+        localStorage.setItem('mermaid_ninja_custom_challenges', JSON.stringify(updated));
+        
+        showToast(language === 'en' ? `Challenge "${newChallenge.en.name}" imported as Level ${nextLevelNum}!` : `Challenge "${newChallenge[language]?.name}" als Level ${nextLevelNum} importiert!`);
+        setCurrentLevel(nextLevelNum);
+        localStorage.setItem('mermaid_ninja_level', nextLevelNum.toString());
+        setActiveTab('journey');
+      } catch (err) {
+        console.error("Custom challenge import failed:", err);
+        alert(language === 'en' ? "Failed to parse challenge JSON file. Please ensure it follows the correct schema." : "Fehler beim Parsen der Challenge-JSON-Datei. Bitte stelle sicher, dass sie dem korrekten Schema entspricht.");
+      }
+    };
+    fileReader.readAsText(file);
+  };
+
+  const clearCustomChallenges = () => {
+    if (confirm(language === 'en' ? "Are you sure you want to delete all custom challenges?" : "Bist du sicher, dass du alle benutzerdefinierten Challenges löschen möchtest?")) {
+      playClick();
+      setCustomChallenges([]);
+      localStorage.removeItem('mermaid_ninja_custom_challenges');
+      if (currentLevel > CHALLENGES.length) {
+        setCurrentLevel(1);
+        localStorage.setItem('mermaid_ninja_level', '1');
+      }
+      showToast(language === 'en' ? "All custom challenges deleted." : "Alle benutzerdefinierten Challenges gelöscht.");
+    }
+  };
+
   // Grade Code Function (Automated Challenge Reviewer)
   const gradeChallengeCode = () => {
     if (activeTab !== 'journey') return;
@@ -453,11 +730,11 @@ function App() {
       return;
     }
 
-    const currentChallenge = CHALLENGES[currentLevel - 1];
+    const currentChallenge = ALL_CHALLENGES[currentLevel - 1];
     if (!currentChallenge) return;
 
     // Run technical validations returning syntax semantic key
-    const reviewResult = currentChallenge.validate(currentCode);
+    const reviewResult = validateChallenge(currentChallenge, currentCode);
 
     if (reviewResult.success) {
       const isFirstTime = !completedLevels.includes(currentLevel);
@@ -496,7 +773,7 @@ function App() {
     playLevelUp();
     setShowLevelUp(false);
     
-    if (currentLevel < CHALLENGES.length) {
+    if (currentLevel < ALL_CHALLENGES.length) {
       const nextLvl = currentLevel + 1;
       setCurrentLevel(nextLvl);
       localStorage.setItem('mermaid_ninja_level', nextLvl.toString());
@@ -528,8 +805,14 @@ function App() {
   const gutterNums = Array.from({ length: lineCount }, (_, i) => i + 1);
 
   // Dynamic lists resolved directly from i18n JSON structures (0% hardcoded strings!)
-  const checklistItems = TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.checklist || [];
-  const spickzettelItems = TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.spickzettel || [];
+  const activeChallenge = ALL_CHALLENGES[currentLevel - 1];
+  const isCustomLevel = activeChallenge && activeChallenge.isCustom;
+  const checklistItems = isCustomLevel
+    ? (activeChallenge[language]?.checklist || activeChallenge['en']?.checklist || [])
+    : (TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.checklist || []);
+  const spickzettelItems = isCustomLevel
+    ? (activeChallenge[language]?.spickzettel || activeChallenge['en']?.spickzettel || [])
+    : (TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.spickzettel || []);
 
   return (
     <div className="app-container">
@@ -609,8 +892,8 @@ function App() {
 
           <div className="scoreboard-item">
             <span className="scoreboard-label">{t('beltLabel')}</span>
-            <span className="scoreboard-value" style={{ color: CHALLENGES[currentLevel - 1]?.level >= 5 ? 'var(--accent-rose)' : 'var(--accent-teal)' }}>
-              {CHALLENGES[currentLevel - 1]?.beltEmoji} {t(`challenges.level${currentLevel}.name`)}
+            <span className="scoreboard-value" style={{ color: ALL_CHALLENGES[currentLevel - 1]?.level >= 5 ? 'var(--accent-rose)' : 'var(--accent-teal)' }}>
+              {ALL_CHALLENGES[currentLevel - 1]?.beltEmoji} {t(`challenges.level${currentLevel}.name`)}
             </span>
           </div>
 
@@ -622,7 +905,7 @@ function App() {
               <div className="progress-bar-container">
                 <div 
                   className="progress-bar-fill" 
-                  style={{ width: `${Math.min((xp / (CHALLENGES.length * 100)) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((xp / (ALL_CHALLENGES.length * 100)) * 100, 100)}%` }}
                 />
               </div>
             </span>
@@ -631,7 +914,7 @@ function App() {
           <div className="scoreboard-item" style={{ minWidth: '140px' }}>
             <span className="scoreboard-label">{t('unlockedBadges')}</span>
             <div className="badges-container">
-              {CHALLENGES.map((ch) => {
+              {ALL_CHALLENGES.map((ch) => {
                 const isEarned = completedLevels.includes(ch.level);
                 return (
                   <div 
@@ -657,7 +940,7 @@ function App() {
           className={`tab-btn ${activeTab === 'journey' ? 'active' : ''}`}
         >
           <Flame size={16} />
-          {t('journeyTab')} ({completedLevels.length}/5)
+          {t('journeyTab')} ({completedLevels.length}/{ALL_CHALLENGES.length})
         </button>
 
         <button 
@@ -675,6 +958,14 @@ function App() {
           <BookOpen size={16} />
           {t('referenceTab')}
         </button>
+
+        <button 
+          onClick={() => { playClick(); setActiveTab('creator'); }}
+          className={`tab-btn ${activeTab === 'creator' ? 'active' : ''}`}
+        >
+          <Sparkles size={16} />
+          {language === 'en' ? 'Dojo Creator' : 'Dojo-Ersteller'}
+        </button>
       </nav>
 
       {/* 3. MAIN WORKSPACE CONTENT */}
@@ -686,7 +977,7 @@ function App() {
             <div className="instructions-card-header">{t('curriculumHeader')}</div>
             
             <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              {CHALLENGES.map((c) => {
+              {ALL_CHALLENGES.map((c) => {
                 const isCompleted = completedLevels.includes(c.level);
                 const isCurrent = currentLevel === c.level;
                 const isUnlocked = c.level <= completedLevels.length + 1;
@@ -710,7 +1001,7 @@ function App() {
             </div>
 
             <h2 className="challenge-title">
-              <span>{CHALLENGES[currentLevel - 1]?.beltEmoji}</span>
+              <span>{ALL_CHALLENGES[currentLevel - 1]?.beltEmoji}</span>
               Level {currentLevel}: {t(`challenges.level${currentLevel}.name`)}
             </h2>
 
@@ -1243,6 +1534,479 @@ function App() {
         </main>
       )}
 
+      {activeTab === 'creator' && (
+        <main className="glass-panel" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.5rem', alignItems: 'stretch' }}>
+          
+          {/* Left Area - Creation Form */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div>
+              <h2 className="gradient-text" style={{ fontSize: '1.6rem', fontWeight: 800 }}>
+                {language === 'en' ? 'Create Custom Challenge Dojo' : 'Eigene Dojo-Challenge erstellen'}
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                {language === 'en' 
+                  ? 'Author custom technical diagram tasks with integrated Definition of Done criteria.'
+                  : 'Entwirf eigene technische Diagramm-Aufgaben mit integrierten Kriterien zur Abnahme.'}
+              </p>
+            </div>
+
+            {/* Basic Info Form Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>English Name</label>
+                <input 
+                  type="text" 
+                  value={creatorNameEn}
+                  onChange={(e) => setCreatorNameEn(e.target.value)}
+                  placeholder="e.g. Master the Flowchart"
+                  className="spickzettel-pre"
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none' }}
+                />
+              </div>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>Deutscher Name</label>
+                <input 
+                  type="text" 
+                  value={creatorNameDe}
+                  onChange={(e) => setCreatorNameDe(e.target.value)}
+                  placeholder="z.B. Meistere das Flussdiagramm"
+                  className="spickzettel-pre"
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>English Story Description</label>
+                <textarea 
+                  value={creatorStoryEn}
+                  onChange={(e) => setCreatorStoryEn(e.target.value)}
+                  placeholder="The backstory of why this diagram is needed..."
+                  className="spickzettel-pre"
+                  rows={3}
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none', resize: 'none' }}
+                />
+              </div>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>Deutsche Geschichte (Story)</label>
+                <textarea 
+                  value={creatorStoryDe}
+                  onChange={(e) => setCreatorStoryDe(e.target.value)}
+                  placeholder="Der Hintergrund, warum dieses Diagramm benötigt wird..."
+                  className="spickzettel-pre"
+                  rows={3}
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none', resize: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>English Mission Objective</label>
+                <textarea 
+                  value={creatorMissionEn}
+                  onChange={(e) => setCreatorMissionEn(e.target.value)}
+                  placeholder="What specifically needs to be drawn..."
+                  className="spickzettel-pre"
+                  rows={2}
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none', resize: 'none' }}
+                />
+              </div>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>Deutsche Mission (Ziel)</label>
+                <textarea 
+                  value={creatorMissionDe}
+                  onChange={(e) => setCreatorMissionDe(e.target.value)}
+                  placeholder="Was genau gezeichnet werden muss..."
+                  className="spickzettel-pre"
+                  rows={2}
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none', resize: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>Belt Emoji</label>
+                <select 
+                  value={creatorBeltEmoji}
+                  onChange={(e) => setCreatorBeltEmoji(e.target.value)}
+                  className="spickzettel-pre"
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none', background: 'var(--bg-primary)', color: 'var(--text-main)', cursor: 'pointer' }}
+                >
+                  <option value="⬜">⬜ White / Weiß</option>
+                  <option value="🟨">🟨 Yellow / Gelb</option>
+                  <option value="🟧">🟧 Orange / Orange</option>
+                  <option value="🟩">🟩 Green / Grün</option>
+                  <option value="🟦">🟦 Blue / Blau</option>
+                  <option value="🟪">🟪 Purple / Violett</option>
+                  <option value="🟫">🟫 Brown / Braun</option>
+                  <option value="⬛">⬛ Black / Schwarz</option>
+                  <option value="🔴">🔴 Red / Rot</option>
+                  <option value="👑">👑 Master / Meister</option>
+                </select>
+              </div>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>Badge Emoji</label>
+                <input 
+                  type="text" 
+                  value={creatorBadgeEmoji}
+                  onChange={(e) => setCreatorBadgeEmoji(e.target.value)}
+                  placeholder="e.g. 🚀"
+                  className="spickzettel-pre"
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none' }}
+                />
+              </div>
+              <div>
+                <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>XP Reward</label>
+                <input 
+                  type="number" 
+                  value={creatorXpReward}
+                  onChange={(e) => setCreatorXpReward(e.target.value)}
+                  placeholder="100"
+                  className="spickzettel-pre"
+                  style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            {/* Starter Code */}
+            <div>
+              <label className="scoreboard-label" style={{ marginBottom: '4px', display: 'block' }}>Starter Code (Mermaid.js)</label>
+              <textarea 
+                value={creatorStarterCode}
+                onChange={(e) => setCreatorStarterCode(e.target.value)}
+                className="spickzettel-pre"
+                rows={5}
+                style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, outline: 'none', fontFamily: 'var(--font-mono)' }}
+              />
+            </div>
+
+            {/* Validation Rules Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="scoreboard-label" style={{ fontSize: '0.85rem' }}>
+                  {language === 'en' ? 'Definition of Done (DoD) Rules' : 'Kriterien zur Abnahme (DoD)'}
+                </span>
+                
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {['contains_any', 'contains_all', 'not_contains', 'node_defined', 'connection', 'connection_labeled'].map((type) => (
+                    <button 
+                      key={type}
+                      onClick={() => addValidationRule(type)}
+                      className="btn-secondary"
+                      style={{ padding: '0.35rem 0.6rem', fontSize: '0.7rem', borderRadius: '6px' }}
+                    >
+                      + {type.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {creatorRules.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '2rem', border: '1px dashed var(--border-color)', borderRadius: '8px', textAlign: 'center' }}>
+                  {language === 'en' 
+                    ? 'No validation rules added yet. Click a rule button above to secure this challenge!' 
+                    : 'Noch keine Kriterien hinzugefügt. Klicke oben auf eine Regel, um dieses Level abzusichern!'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {creatorRules.map((rule, idx) => (
+                    <div 
+                      key={idx} 
+                      className="spickzettel-accordion" 
+                      style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: 0 }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span className="scoreboard-label" style={{ color: 'var(--accent-teal)' }}>
+                          Rule #{idx + 1}: {rule.type.replace('_', ' ').toUpperCase()} ({rule.hintKey})
+                        </span>
+                        <button 
+                          onClick={() => removeRule(idx)}
+                          className="btn-secondary"
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', borderRadius: '4px', borderColor: 'var(--accent-rose)', color: 'var(--accent-rose)' }}
+                        >
+                          {language === 'en' ? 'Remove' : 'Löschen'}
+                        </button>
+                      </div>
+
+                      {/* Rule configuration inputs based on type */}
+                      {rule.type === 'contains_any' && (
+                        <div>
+                          <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>Any of these Keywords (Comma-separated)</label>
+                          <input 
+                            type="text"
+                            value={rule.keywordsStr || ''}
+                            onChange={(e) => updateRuleField(idx, 'keywordsStr', e.target.value)}
+                            placeholder="e.g. graph TD, flowchart TD"
+                            className="spickzettel-pre"
+                            style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                          />
+                        </div>
+                      )}
+
+                      {rule.type === 'contains_all' && (
+                        <div>
+                          <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>All of these Keywords (Comma-separated)</label>
+                          <input 
+                            type="text"
+                            value={rule.keywordsStr || ''}
+                            onChange={(e) => updateRuleField(idx, 'keywordsStr', e.target.value)}
+                            placeholder="e.g. Alice, Bob"
+                            className="spickzettel-pre"
+                            style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                          />
+                        </div>
+                      )}
+
+                      {rule.type === 'not_contains' && (
+                        <div>
+                          <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>Forbidden Keyword</label>
+                          <input 
+                            type="text"
+                            value={rule.keyword || ''}
+                            onChange={(e) => updateRuleField(idx, 'keyword', e.target.value)}
+                            placeholder="e.g. eval"
+                            className="spickzettel-pre"
+                            style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                          />
+                        </div>
+                      )}
+
+                      {rule.type === 'node_defined' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                          <div>
+                            <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>Node ID</label>
+                            <input 
+                              type="text"
+                              value={rule.nodeId || ''}
+                              onChange={(e) => updateRuleField(idx, 'nodeId', e.target.value)}
+                              placeholder="e.g. db"
+                              className="spickzettel-pre"
+                              style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>Node Label (Optional)</label>
+                            <input 
+                              type="text"
+                              value={rule.nodeLabel || ''}
+                              onChange={(e) => updateRuleField(idx, 'nodeLabel', e.target.value)}
+                              placeholder="e.g. Coffee Log DB"
+                              className="spickzettel-pre"
+                              style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {rule.type === 'connection' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                          <div>
+                            <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>From Node ID</label>
+                            <input 
+                              type="text"
+                              value={rule.from || ''}
+                              onChange={(e) => updateRuleField(idx, 'from', e.target.value)}
+                              placeholder="e.g. Start"
+                              className="spickzettel-pre"
+                              style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>To Node ID</label>
+                            <input 
+                              type="text"
+                              value={rule.to || ''}
+                              onChange={(e) => updateRuleField(idx, 'to', e.target.value)}
+                              placeholder="e.g. Finish"
+                              className="spickzettel-pre"
+                              style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {rule.type === 'connection_labeled' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                          <div>
+                            <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>From Node ID</label>
+                            <input 
+                              type="text"
+                              value={rule.from || ''}
+                              onChange={(e) => updateRuleField(idx, 'from', e.target.value)}
+                              placeholder="e.g. IsOffline"
+                              className="spickzettel-pre"
+                              style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>To Node ID</label>
+                            <input 
+                              type="text"
+                              value={rule.to || ''}
+                              onChange={(e) => updateRuleField(idx, 'to', e.target.value)}
+                              placeholder="e.g. LocalCache"
+                              className="spickzettel-pre"
+                              style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="scoreboard-label" style={{ fontSize: '0.7rem' }}>Path Label Text</label>
+                            <input 
+                              type="text"
+                              value={rule.label || ''}
+                              onChange={(e) => updateRuleField(idx, 'label', e.target.value)}
+                              placeholder="e.g. Yes"
+                              className="spickzettel-pre"
+                              style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.4rem', outline: 'none' }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rule fail hints localizations */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', borderTop: '1px dashed var(--border-color)', paddingTop: '0.5rem' }}>
+                        <div>
+                          <label className="scoreboard-label" style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>English Fail Hint (Sensei tip)</label>
+                          <input 
+                            type="text"
+                            value={rule.enHint || ''}
+                            onChange={(e) => updateRuleField(idx, 'enHint', e.target.value)}
+                            placeholder="Hint shown in English when this rule fails..."
+                            className="spickzettel-pre"
+                            style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.35rem', fontSize: '0.8rem', outline: 'none' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="scoreboard-label" style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Deutscher Fehler-Tipp (Sensei-Rat)</label>
+                          <input 
+                            type="text"
+                            value={rule.deHint || ''}
+                            onChange={(e) => updateRuleField(idx, 'deHint', e.target.value)}
+                            placeholder="Hinweis auf Deutsch bei Fehlern..."
+                            className="spickzettel-pre"
+                            style={{ width: '100%', border: '1px solid var(--border-color)', margin: 0, padding: '0.35rem', fontSize: '0.8rem', outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+              <button 
+                onClick={saveCustomChallenge}
+                className="btn-primary"
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                <CheckCircle size={16} />
+                {language === 'en' ? 'Save and Inject Challenge' : 'Speichern & injizieren'}
+              </button>
+              <button 
+                onClick={() => { playClick(); setActiveTab('journey'); }}
+                className="btn-secondary"
+              >
+                {language === 'en' ? 'Cancel' : 'Abbrechen'}
+              </button>
+            </div>
+          </div>
+
+          {/* Right Area - Custom Challenges List & Import/Export */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem' }}>
+            <div>
+              <h3 className="scoreboard-label" style={{ fontSize: '0.85rem' }}>
+                {language === 'en' ? 'Intranet JSON Utilities' : 'Intranet JSON-Dienste'}
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.2rem', lineHeight: '1.4' }}>
+                {language === 'en' 
+                  ? 'Easily share, backup, or deploy custom curriculum challenges across air-gapped secure corporate networks.'
+                  : 'Teile, sichere oder spiele neue Curriculum-Challenges in geschlossenen Unternehmensnetzwerken ein.'}
+              </p>
+            </div>
+
+            {/* Import Button */}
+            <div className="spickzettel-accordion" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: 0 }}>
+              <span className="scoreboard-label" style={{ fontSize: '0.7rem' }}>
+                {language === 'en' ? 'Import Level JSON' : 'Level-JSON importieren'}
+              </span>
+              <label 
+                className="btn-secondary"
+                style={{ width: '100%', justifyContent: 'center', cursor: 'pointer', textAlign: 'center', display: 'inline-flex' }}
+              >
+                <Sparkles size={14} style={{ color: 'var(--accent-teal)' }} />
+                <span>{language === 'en' ? 'Select .json file' : '.json-Datei wählen'}</span>
+                <input 
+                  type="file" 
+                  accept=".json"
+                  onChange={handleImportJson}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
+
+            {/* Custom challenges list */}
+            <div>
+              <h4 className="scoreboard-label" style={{ marginBottom: '0.5rem' }}>
+                {language === 'en' ? 'Your Custom Challenges' : 'Eigene Challenges'}
+              </h4>
+              
+              {customChallenges.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontStyle: 'italic', padding: '1rem', border: '1px dashed var(--border-color)', borderRadius: '6px', textAlign: 'center' }}>
+                  {language === 'en' ? 'No custom levels yet.' : 'Noch keine eigenen Levels.'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {customChallenges.map((ch) => (
+                    <div 
+                      key={ch.level}
+                      style={{ 
+                        background: 'var(--bg-secondary)', 
+                        border: '1px solid var(--border-color)', 
+                        padding: '0.5rem 0.75rem', 
+                        borderRadius: '8px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
+                          Level {ch.level}: {ch[language]?.name || ch.en?.name}
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                          {ch.badgeEmoji} {ch.xpReward} XP
+                        </span>
+                      </div>
+                      
+                      <button 
+                        onClick={() => exportChallenge(ch)}
+                        className="btn-secondary"
+                        style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', borderRadius: '4px' }}
+                      >
+                        {language === 'en' ? 'Export' : 'Exportieren'}
+                      </button>
+                    </div>
+                  ))}
+
+                  <button 
+                    onClick={clearCustomChallenges}
+                    className="btn-secondary"
+                    style={{ borderColor: 'var(--accent-rose)', color: 'var(--accent-rose)', width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
+                  >
+                    {language === 'en' ? 'Delete Custom Levels' : 'Eigene Levels löschen'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+      )}
+
       {/* 4. SENSEI SPEECH CONSOLE BANNER */}
       <footer className="sensei-console">
         <div className="sensei-avatar-wrapper">
@@ -1310,7 +2074,7 @@ function App() {
               className="btn-primary" 
               style={{ background: 'linear-gradient(135deg, var(--accent-gold), #b45309)', color: '#000', fontWeight: 'bold', display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'center' }}
             >
-              <span>{currentLevel < CHALLENGES.length ? t('modalAdvanceBtn') : t('modalClaimFinalBtn')}</span>
+              <span>{currentLevel < ALL_CHALLENGES.length ? t('modalAdvanceBtn') : t('modalClaimFinalBtn')}</span>
               <ArrowRight size={16} />
             </button>
           </div>

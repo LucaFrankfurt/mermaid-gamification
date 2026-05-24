@@ -237,3 +237,103 @@ export const CHALLENGES = [
     }
   }
 ];
+
+// Declarative Validation Engine for Custom Challenges
+export const runDeclarativeValidation = (code, rules) => {
+  if (!rules || !Array.isArray(rules)) return { success: true };
+  
+  const clean = code.trim().replace(/\s+/g, '');
+  const lower = code.toLowerCase();
+  
+  for (const rule of rules) {
+    if (rule.type === 'contains_any') {
+      const match = rule.keywords.some(kw => lower.includes(kw.toLowerCase().trim()));
+      if (!match) return { success: false, hintKey: rule.hintKey };
+    }
+    
+    else if (rule.type === 'contains_all') {
+      for (const kw of rule.keywords) {
+        if (!lower.includes(kw.toLowerCase().trim())) {
+          return { success: false, hintKey: rule.hintKey };
+        }
+      }
+    }
+    
+    else if (rule.type === 'not_contains') {
+      if (lower.includes(rule.keyword.toLowerCase().trim())) {
+        return { success: false, hintKey: rule.hintKey };
+      }
+    }
+    
+    else if (rule.type === 'node_defined') {
+      const id = rule.nodeId.trim();
+      const text = rule.nodeLabel ? rule.nodeLabel.toLowerCase().trim() : '';
+      
+      // Node ID must exist
+      if (!code.includes(id)) {
+        return { success: false, hintKey: rule.hintKey };
+      }
+      
+      // Node text label must be matched inside brackets/parens/etc if supplied
+      if (text && !lower.includes(text)) {
+        return { success: false, hintKey: rule.hintKey };
+      }
+    }
+    
+    else if (rule.type === 'connection') {
+      const hasLink = hasConnection(clean, rule.from.trim(), rule.to.trim());
+      if (!hasLink) return { success: false, hintKey: rule.hintKey };
+    }
+    
+    else if (rule.type === 'connection_labeled') {
+      const hasLink = hasConnectionWithLabel(clean, rule.from.trim(), rule.to.trim(), rule.label.trim());
+      if (!hasLink) return { success: false, hintKey: rule.hintKey };
+    }
+    
+    else if (rule.type === 'regex') {
+      try {
+        const rx = new RegExp(rule.pattern, rule.flags || 'i');
+        if (!rx.test(code)) {
+          return { success: false, hintKey: rule.hintKey };
+        }
+      } catch (e) {
+        console.error("Invalid regex in validation rule", e);
+        return { success: false, hintKey: rule.hintKey };
+      }
+    }
+    
+    else if (rule.type === 'git_branch') {
+      const br = rule.branch.replace(/\s+/g, '');
+      if (!clean.includes(`branch${br}`) && !clean.includes(`branch"${br}"`)) {
+        return { success: false, hintKey: rule.hintKey };
+      }
+    }
+    
+    else if (rule.type === 'git_checkout') {
+      const br = rule.branch.replace(/\s+/g, '');
+      if (!clean.includes(`checkout${br}`) && !clean.includes(`checkout"${br}"`)) {
+        return { success: false, hintKey: rule.hintKey };
+      }
+    }
+    
+    else if (rule.type === 'git_merge') {
+      const br = rule.branch.replace(/\s+/g, '');
+      if (!clean.includes(`merge${br}`) && !clean.includes(`merge"${br}"`)) {
+        return { success: false, hintKey: rule.hintKey };
+      }
+    }
+  }
+  
+  return { success: true };
+};
+
+// Unified validation handler routing
+export const validateChallenge = (challenge, code) => {
+  if (challenge.validate) {
+    return challenge.validate(code);
+  }
+  if (challenge.rules) {
+    return runDeclarativeValidation(code, challenge.rules);
+  }
+  return { success: true };
+};
