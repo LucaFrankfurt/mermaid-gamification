@@ -571,6 +571,20 @@ describe('Dynamic Checklist Status Validation', () => {
     expect(fullCheck).toEqual([true, true, true]);
   });
 
+  it('should achieve 100% checklist status coverage by validating starter and solution codes for all 10 levels', () => {
+    CHALLENGES.forEach(challenge => {
+      const statusSolution = getChallengeChecklistStatus(challenge, challenge.solution || '');
+      const checklistLength = challenge.en?.checklist?.length || 0;
+      
+      // All solution items must evaluate to true
+      expect(statusSolution.length).toBe(checklistLength);
+      expect(statusSolution.every(v => v === true)).toBe(true);
+
+      const statusStarter = getChallengeChecklistStatus(challenge, challenge.starterCode);
+      expect(statusStarter.length).toBe(checklistLength);
+    });
+  });
+
   it('should ignore requirements in comments inside the editor', () => {
     const challenge = CHALLENGES[1]; // Level 2 Decision Flowchart
     
