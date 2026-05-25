@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent, UIEvent } from 'react';
 import mermaid from 'mermaid';
-import { CHALLENGES, validateChallenge, Challenge, ValidationRule } from './challenges';
+import { CHALLENGES, validateChallenge, Challenge, ValidationRule, getChallengeChecklistStatus } from './challenges';
 import { TRANSLATIONS } from './i18n';
 import { playSuccess, playFailure, playLevelUp, playClick } from './soundEffects';
 
@@ -28,10 +28,12 @@ mermaid.initialize({
   securityLevel: 'loose',
   flowchart: {
     useMaxWidth: true,
-    htmlLabels: true,
-    curve: 'basis'
+    htmlLabels: false,
+    curve: 'basis',
+    padding: 20
   },
   themeVariables: {
+    fontFamily: '"Inter", -apple-system, sans-serif',
     primaryColor: '#ffffff',
     primaryBorderColor: '#201515',
     primaryTextColor: '#201515',
@@ -226,22 +228,47 @@ function App() {
   const highlightRef = useRef<HTMLPreElement>(null);
   const compileTimeoutRef = useRef<any>(null);
 
+  // State to store visual heights of each highlighted line for line wrapping gutter alignment
+  const [lineHeights, setLineHeights] = useState<number[]>([]);
+
+  const updateLineHeights = useCallback(() => {
+    if (highlightRef.current) {
+      const lineElems = highlightRef.current.getElementsByClassName('code-line');
+      const heights: number[] = [];
+      for (let i = 0; i < lineElems.length; i++) {
+        heights.push((lineElems[i] as HTMLElement).offsetHeight);
+      }
+      setLineHeights(heights);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateLineHeights();
+    }, 0);
+    window.addEventListener('resize', updateLineHeights);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateLineHeights);
+    };
+  }, [currentCode, wordWrap, activeTab, updateLineHeights]);
+
   // Translate helper shortcut
   const t = useCallback((key: string): string => {
-    // Check if key targets a custom challenge
+    // Check if key targets a core or custom challenge
     if (key.startsWith('challenges.level')) {
       const parts = key.split('.');
       const levelStr = parts[1]; // e.g. "level6"
       const levelNum = parseInt(levelStr.replace('level', ''), 10);
-      const customCh = customChallenges.find(c => c.level === levelNum);
-      if (customCh) {
-        const langData: any = customCh[language as keyof Challenge] || customCh['en' as keyof Challenge] || {};
+      const ch = ALL_CHALLENGES.find(c => c.level === levelNum);
+      if (ch) {
+        const langData: any = ch[language as keyof Challenge] || ch['en' as keyof Challenge] || {};
         if (parts[2] === 'name') return langData.name || '';
         if (parts[2] === 'badgeName') return langData.badgeName || langData.name || '';
         if (parts[2] === 'story') return langData.story || '';
         if (parts[2] === 'mission') return langData.mission || '';
         if (parts[2] === 'hint' && parts[3]) {
-          return (langData.tips && langData.tips[parts[3]]) || '';
+          return (langData.hint && langData.hint[parts[3]]) || (langData.tips && langData.tips[parts[3]]) || '';
         }
       }
     }
@@ -253,7 +280,7 @@ function App() {
       current = current[part];
     }
     return current !== undefined ? current : key;
-  }, [language, customChallenges]);
+  }, [language, ALL_CHALLENGES]);
 
   // Compile Mermaid function
   const compileMermaid = useCallback(async (code: string) => {
@@ -423,6 +450,28 @@ function App() {
     } else if (activeTab === 'sandbox') {
       handleCodeChange('');
       showToast(t('toastClear'));
+    }
+  };
+
+  // Reset all Dojo progress
+  const resetProgress = () => {
+    const confirmMsg = language === 'en' 
+      ? "Are you sure you want to reset all your Dojo progress? This will clear all completed levels, belts, and XP!"
+      : "Bist du sicher, dass du deinen gesamten Dojo-Fortschritt löschen möchtest? Dadurch werden alle abgeschlossenen Stufen, Gürtel und XP zurückgesetzt!";
+    
+    if (confirm(confirmMsg)) {
+      playClick();
+      setCurrentLevel(1);
+      setXp(0);
+      setCompletedLevels([]);
+      setJourneyCodes({});
+      
+      localStorage.setItem('mermaid_ninja_level', '1');
+      localStorage.setItem('mermaid_ninja_xp', '0');
+      localStorage.setItem('mermaid_ninja_completed', JSON.stringify([]));
+      localStorage.setItem('mermaid_ninja_codes', JSON.stringify({}));
+      
+      showToast(language === 'en' ? "Dojo progress reset successfully!" : "Dojo-Fortschritt erfolgreich zurückgesetzt!");
     }
   };
 
@@ -803,15 +852,17 @@ function App() {
   const lineCount = Math.max(currentCode.split('\n').length, 1);
   const gutterNums = Array.from({ length: lineCount }, (_, i) => i + 1);
 
-  // Dynamic lists resolved directly from i18n JSON structures (0% hardcoded strings!)
+  // Dynamic lists resolved directly from challenge structures (0% hardcoded strings!)
   const activeChallenge = ALL_CHALLENGES[currentLevel - 1];
-  const isCustomLevel = activeChallenge && activeChallenge.isCustom;
-  const checklistItems = isCustomLevel
+  const checklistItems = activeChallenge
     ? (activeChallenge[language as 'en' | 'de']?.checklist || activeChallenge['en']?.checklist || [])
-    : (TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.checklist || []);
-  const spickzettelItems = isCustomLevel
+    : [];
+  const checklistStatuses = activeChallenge
+    ? getChallengeChecklistStatus(activeChallenge, currentCode)
+    : [];
+  const spickzettelItems = activeChallenge
     ? (activeChallenge[language as 'en' | 'de']?.spickzettel || activeChallenge['en']?.spickzettel || [])
-    : (TRANSLATIONS[language]?.challenges?.[`level${currentLevel}`]?.spickzettel || []);
+    : [];
 
   return (
     <div className="app-container">
@@ -886,6 +937,35 @@ function App() {
               {darkMode 
                 ? (language === 'en' ? 'Light' : 'Hell') 
                 : (language === 'en' ? 'Dark' : 'Dunkel')}
+            </button>
+          </div>
+
+          {/* Reset Progress Button */}
+          <div className="scoreboard-item" style={{ marginRight: '0.5rem' }}>
+            <span className="scoreboard-label">Dojo Progress</span>
+            <button 
+              onClick={resetProgress}
+              style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: 'var(--accent-rose)',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+                marginTop: '2px',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
+            >
+              <RotateCcw size={14} />
+              {language === 'en' ? 'Reset Progress' : 'Fortschritt löschen'}
             </button>
           </div>
 
@@ -1017,7 +1097,7 @@ function App() {
               <div className="instructions-card-header" style={{ marginTop: '1.25rem', color: 'var(--accent-gold)' }}>{t('gradeReqs')}</div>
               <div className="mission-checklist">
                 {checklistItems.map((item: string, idx: number) => {
-                  const isCompleted = completedLevels.includes(currentLevel);
+                  const isCompleted = completedLevels.includes(currentLevel) || !!checklistStatuses[idx];
                   return (
                     <div key={idx} className={`checklist-item ${isCompleted ? 'done' : ''}`}>
                       <CheckCircle size={14} style={{ color: isCompleted ? 'var(--accent-teal)' : 'var(--text-muted)' }} />
@@ -1088,15 +1168,20 @@ function App() {
 
             <div className="editor-wrapper">
               {/* Synced scroll line numbers column */}
-              {!wordWrap && (
-                <div className="editor-gutter" ref={gutterRef}>
-                  {gutterNums.map((num) => (
-                    <span key={num} className="editor-gutter-num">
-                      {num}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="editor-gutter" ref={gutterRef}>
+                {gutterNums.map((num, idx) => (
+                  <span 
+                    key={num} 
+                    className="editor-gutter-num"
+                    style={{
+                      height: lineHeights[idx] ? `${lineHeights[idx]}px` : 'auto',
+                      display: 'block'
+                    }}
+                  >
+                    {num}
+                  </span>
+                ))}
+              </div>
 
               {/* Layered Editor Container: transparent textarea sitting on top of pre tag */}
               <div className="editor-workspace-wrapper">
@@ -1109,7 +1194,18 @@ function App() {
                     overflowWrap: wordWrap ? 'anywhere' : 'normal'
                   }}
                 >
-                  <code dangerouslySetInnerHTML={{ __html: highlightMermaid(currentCode) }} />
+                  {highlightMermaid(currentCode).split('\n').map((line, idx) => (
+                    <div 
+                      key={idx} 
+                      className="code-line"
+                      style={{
+                        whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                        wordBreak: wordWrap ? 'break-word' : 'normal',
+                        overflowWrap: wordWrap ? 'anywhere' : 'normal'
+                      }}
+                      dangerouslySetInnerHTML={{ __html: line || ' ' }}
+                    />
+                  ))}
                 </pre>
                 
                 <textarea
@@ -1239,15 +1335,20 @@ function App() {
             {/* Custom sandbox editor with gutter & live highlights */}
             <div className="editor-panel">
               <div className="editor-wrapper">
-                {!wordWrap && (
-                  <div className="editor-gutter" ref={gutterRef}>
-                    {gutterNums.map((num) => (
-                      <span key={num} className="editor-gutter-num">
-                        {num}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="editor-gutter" ref={gutterRef}>
+                  {gutterNums.map((num, idx) => (
+                    <span 
+                      key={num} 
+                      className="editor-gutter-num"
+                      style={{
+                        height: lineHeights[idx] ? `${lineHeights[idx]}px` : 'auto',
+                        display: 'block'
+                      }}
+                    >
+                      {num}
+                    </span>
+                  ))}
+                </div>
 
                 <div className="editor-workspace-wrapper">
                   <pre 
@@ -1259,7 +1360,18 @@ function App() {
                       overflowWrap: wordWrap ? 'anywhere' : 'normal'
                     }}
                   >
-                    <code dangerouslySetInnerHTML={{ __html: highlightMermaid(currentCode) }} />
+                    {highlightMermaid(currentCode).split('\n').map((line, idx) => (
+                      <div 
+                        key={idx} 
+                        className="code-line"
+                        style={{
+                          whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                          wordBreak: wordWrap ? 'break-word' : 'normal',
+                          overflowWrap: wordWrap ? 'anywhere' : 'normal'
+                        }}
+                        dangerouslySetInnerHTML={{ __html: line || ' ' }}
+                      />
+                    ))}
                   </pre>
 
                   <textarea
@@ -1526,6 +1638,86 @@ function App() {
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+
+            {/* Accordion 4: Challenge Solutions */}
+            <div className="spickzettel-accordion">
+              <button 
+                onClick={() => { playClick(); setActiveAccordion(activeAccordion === 3 ? null : 3); }}
+                className="spickzettel-accordion-trigger"
+                style={{
+                  borderLeft: '4px solid var(--accent-gold)',
+                  background: activeAccordion === 3 ? 'rgba(250, 204, 21, 0.05)' : 'transparent'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}>
+                  <Trophy size={16} style={{ color: 'var(--accent-gold)' }} />
+                  {language === 'en' ? 'Challenge Solutions Walkthrough Scroll' : 'Schriftrolle der Lösungen für Herausforderungen'}
+                </span>
+                <ChevronDown size={18} style={{ transform: activeAccordion === 3 ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+              </button>
+              
+              {activeAccordion === 3 && (
+                <div className="spickzettel-accordion-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem 1rem' }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                    {language === 'en' 
+                      ? "Apprentice! Under severe blocks or compile constraints, study the master's solutions below to perfect your understanding of the Dojo's sacred scripts."
+                      : "Lehrling! Bei schweren Blockaden oder Compiler-Problemen studiere die Lösungen des Meisters, um dein Verständnis der heiligen Dojo-Skripte zu perfektionieren."}
+                  </p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {ALL_CHALLENGES.filter(ch => !ch.isCustom).map((ch) => (
+                      <div 
+                        key={ch.level} 
+                        className="glass-panel" 
+                        style={{ 
+                          padding: '1rem', 
+                          borderRadius: '8px', 
+                          background: 'var(--bg-secondary)', 
+                          border: '1px solid var(--border-color)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                            {ch.beltEmoji} Level {ch.level}: {ch[language as 'en' | 'de']?.name || ch.en?.name}
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (ch.solution) {
+                                copyToClipboard(ch.solution, `Solution for Level ${ch.level}`, "toastCodeCopied");
+                              }
+                            }}
+                            className="btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '4px' }}
+                          >
+                            <Copy size={12} />
+                            {language === 'en' ? 'Copy Solution' : 'Lösung kopieren'}
+                          </button>
+                        </div>
+                        <pre 
+                          className="spickzettel-pre" 
+                          style={{ 
+                            fontSize: '0.8rem', 
+                            padding: '0.75rem', 
+                            background: '#130d14', 
+                            color: '#e2d8e4', 
+                            margin: 0,
+                            borderRadius: '6px',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            overflowX: 'auto',
+                            fontFamily: 'var(--font-mono)'
+                          }}
+                        >
+                          {ch.solution}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -508,17 +508,28 @@ body::after {
   gap: 0.5rem;
   font-size: 0.875rem;
   color: var(--text-muted);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left;
 }
 
 .checklist-item.done {
   color: var(--accent-teal);
   text-decoration: line-through;
-  opacity: 0.7;
+  text-decoration-color: rgba(20, 241, 149, 0.4);
+  opacity: 0.75;
+  transform: scale(0.99) translateX(2px);
 }
 
 .checklist-item svg {
   flex-shrink: 0;
   margin-top: 0.15rem;
+  transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.checklist-item.done svg {
+  color: var(--accent-teal) !important;
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 4px rgba(20, 241, 149, 0.4));
 }
 
 /* Spickzettel Styles */
@@ -642,12 +653,41 @@ body::after {
   outline: none;
 }
 
+/* Cross-platform selection fix: keep text transparent so Windows doesn't reveal
+   the plain-text or cause layout/font-size shifts on selection.
+   The translucent bg shows the selection as a tinted overlay over the highlighted pre. */
+.code-textarea::selection {
+  color: transparent !important;
+  background-color: rgba(255, 79, 0, 0.18) !important;
+}
+
+.code-textarea::-moz-selection {
+  color: transparent !important;
+  background-color: rgba(255, 79, 0, 0.18) !important;
+}
+
+/* Dark mode: bump opacity since the near-black background absorbs the tint more */
+body.dark-theme .code-textarea::selection {
+  background-color: rgba(255, 79, 0, 0.35) !important;
+}
+
+body.dark-theme .code-textarea::-moz-selection {
+  background-color: rgba(255, 79, 0, 0.35) !important;
+}
+
 .code-highlight {
   background: #ffffff !important;
   color: var(--text-main);
   z-index: 1;
   pointer-events: none; /* Clicks go directly to the textarea below! */
   user-select: none;
+}
+
+.code-line {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.6 !important;
+  min-height: 1.6em;
 }
 
 /* Syntax Token Colors (Warm Light-Mode Corporate theme) */
@@ -996,7 +1036,7 @@ body.dark-theme .spickzettel-accordion-trigger:hover {
   color: var(--text-main) !important;
   fill: var(--text-main) !important;
   font-family: var(--font-sans) !important;
-  font-weight: 600 !important;
+  font-weight: 500 !important;
 }
 
 .canvas-viewport .edgePath .path {
@@ -1018,20 +1058,13 @@ body.dark-theme .spickzettel-accordion-trigger:hover {
   ry: 4px !important;
 }
 
-.canvas-viewport .edgeLabel,
-.canvas-viewport .edgeLabel *,
-.canvas-viewport .edgeLabel span,
-.canvas-viewport .edgeLabel div,
 .canvas-viewport .edgeLabel text,
 .canvas-viewport .edgeLabel tspan {
   color: var(--text-main) !important;
   fill: var(--text-main) !important;
-  background-color: var(--bg-secondary) !important;
   font-family: var(--font-sans) !important;
   font-size: 0.8rem !important;
   font-weight: 700 !important;
-  padding: 1px 4px !important;
-  border-radius: 4px !important;
 }
 
 /* Bottom Console Panel (Sensei Console) */

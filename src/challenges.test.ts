@@ -4,7 +4,9 @@ import {
   hasConnectionWithLabel, 
   runDeclarativeValidation, 
   validateChallenge, 
-  CHALLENGES 
+  CHALLENGES,
+  getChallengeChecklistStatus,
+  stripComments
 } from './challenges';
 
 describe('Mermaid Connection Parsers', () => {
@@ -373,3 +375,228 @@ describe('Curriculum Levels Logic Sanity (Levels 1 - 5)', () => {
     expect(validateChallenge(c, noMerge).success).toBe(false);
   });
 });
+
+describe('Curriculum Levels Logic Sanity (Levels 6 - 10)', () => {
+  it('should pass Level 6 with brewing state transitions', () => {
+    const solution = `stateDiagram-v2
+      [*] --> Off
+      Off --> Idle : turn_on
+      Idle --> Heating : press_brew
+      Heating --> Dispensing : water_ready
+      Dispensing --> Idle : cup_full
+    `;
+    const challenge = CHALLENGES[5];
+    expect(validateChallenge(challenge, solution).success).toBe(true);
+  });
+
+  it('should fail Level 6 on missing or incorrect state transitions', () => {
+    const challenge = CHALLENGES[5];
+    // Missing cup_full transition back to Idle
+    const broken = `stateDiagram-v2
+      [*] --> Off
+      Off --> Idle : turn_on
+      Idle --> Heating : press_brew
+      Heating --> Dispensing : water_ready
+    `;
+    expect(validateChallenge(challenge, broken).success).toBe(false);
+  });
+
+  it('should pass Level 7 with OOP ninja relationships', () => {
+    const solution = `classDiagram
+      class Ninja {
+        +String name
+        +int xp
+        +gainXp(amount)
+      }
+      class Sensei {
+        +teachMastery()
+        +gradeScroll()
+      }
+      Ninja <|-- Sensei
+      Ninja --> Belt : wears
+    `;
+    const challenge = CHALLENGES[6];
+    expect(validateChallenge(challenge, solution).success).toBe(true);
+  });
+
+  it('should fail Level 7 on missing inheritance or methods', () => {
+    const challenge = CHALLENGES[6];
+    // Missing inheritance Ninja <|-- Sensei
+    const broken = `classDiagram
+      class Ninja {
+        +String name
+      }
+      class Sensei {
+        +teachMastery()
+        +gradeScroll()
+      }
+      Ninja --> Belt
+    `;
+    expect(validateChallenge(challenge, broken).success).toBe(false);
+  });
+
+  it('should pass Level 8 with morning empathy routine scores', () => {
+    const solution = `journey
+      title A Ninja Morning Routine
+      section Wake Up
+        Get out of bed: 3: Ninja
+        Walk to Dojo: 4: Ninja
+      section Caffeine Access
+        Order Double Shot: 1: Ninja
+        Drink Nectar of Gods: 5: Ninja, Sensei
+    `;
+    const challenge = CHALLENGES[7];
+    expect(validateChallenge(challenge, solution).success).toBe(true);
+  });
+
+  it('should fail Level 8 on incorrect emotion levels or tasks', () => {
+    const challenge = CHALLENGES[7];
+    // Wrong emotional score for Walk to Dojo
+    const broken = `journey
+      title A Ninja Morning Routine
+      section Wake Up
+        Get out of bed: 3: Ninja
+        Walk to Dojo: 1: Ninja
+      section Caffeine Access
+        Order Double Shot: 1: Ninja
+        Drink Nectar of Gods: 5: Ninja, Sensei
+    `;
+    expect(validateChallenge(challenge, broken).success).toBe(false);
+  });
+
+  it('should pass Level 9 with standard coffee beans consumption', () => {
+    const solution = `pie title Dojo Coffee Beans Consumption
+      "Arabica" : 55
+      "Robusta" : 35
+      "Liberica" : 10
+    `;
+    const challenge = CHALLENGES[8];
+    expect(validateChallenge(challenge, solution).success).toBe(true);
+  });
+
+  it('should fail Level 9 on unbalanced bean ratios', () => {
+    const challenge = CHALLENGES[8];
+    // Arabica is set to 40 instead of 55
+    const broken = `pie title Dojo Coffee Beans Consumption
+      "Arabica" : 40
+      "Robusta" : 35
+      "Liberica" : 10
+    `;
+    expect(validateChallenge(challenge, broken).success).toBe(false);
+  });
+
+  it('should pass Level 10 with ninja database schemas', () => {
+    const solution = `erDiagram
+      NINJA ||--o{ CHALLENGE : completes
+      NINJA {
+          string name
+          int xp
+      }
+      CHALLENGE {
+          int level
+          string badgeEmoji
+          int xpReward
+      }
+      CHALLENGE ||--|| BELT : unlocks
+    `;
+    const challenge = CHALLENGES[9];
+    expect(validateChallenge(challenge, solution).success).toBe(true);
+  });
+
+  it('should fail Level 10 on invalid attribute schema structure', () => {
+    const challenge = CHALLENGES[9];
+    // Missing xpReward attribute on CHALLENGE entity
+    const broken = `erDiagram
+      NINJA ||--o{ CHALLENGE : completes
+      NINJA {
+          string name
+          int xp
+      }
+      CHALLENGE {
+          int level
+          string badgeEmoji
+      }
+      CHALLENGE ||--|| BELT : unlocks
+    `;
+    expect(validateChallenge(challenge, broken).success).toBe(false);
+  });
+});
+
+describe('Dynamic Checklist Status Validation', () => {
+  it('should return boolean array mapping 1-to-1 with checklist items on Level 1', () => {
+    const challenge = CHALLENGES[0];
+    const starterCheck = getChallengeChecklistStatus(challenge, challenge.starterCode);
+    
+    // Checklist for Level 1 has 8 items
+    expect(starterCheck.length).toBe(8);
+    // Starter code should satisfy some (like decl, nodes define) but not all connections
+    expect(starterCheck[0]).toBe(true); // decl: graph TD
+    expect(starterCheck[1]).toBe(true); // node Start
+    expect(starterCheck[5]).toBe(true); // link 1
+    expect(starterCheck[6]).toBe(false); // link 2 is missing in starter code
+    expect(starterCheck[7]).toBe(false); // link 3 is missing in starter code
+
+    // Full solution code should satisfy all 8 checklist items
+    const solutionCheck = getChallengeChecklistStatus(challenge, challenge.solution || '');
+    expect(solutionCheck).toEqual([true, true, true, true, true, true, true, true]);
+  });
+
+  it('should return boolean array mapping 1-to-1 with checklist items on Level 3', () => {
+    const challenge = CHALLENGES[2];
+    const starterCheck = getChallengeChecklistStatus(challenge, challenge.starterCode);
+    expect(starterCheck.length).toBe(5);
+    
+    const solutionCheck = getChallengeChecklistStatus(challenge, challenge.solution || '');
+    expect(solutionCheck).toEqual([true, true, true, true, true]);
+  });
+
+  it('should return boolean array mapping 1-to-1 with checklist items on custom levels using rules', () => {
+    const mockCustomChallenge = {
+      level: 11,
+      beltEmoji: "🥋",
+      badgeEmoji: "🥇",
+      xpReward: 100,
+      starterCode: "graph TD\n  A --> B",
+      rules: [
+        { type: 'contains_any' as const, keywords: ['graph td', 'flowchart td'], hintKey: 'decl', enHint: 'Decl' },
+        { type: 'connection' as const, from: 'A', to: 'B', hintKey: 'connAB', enHint: 'Conn AB' },
+        { type: 'connection' as const, from: 'B', to: 'C', hintKey: 'connBC', enHint: 'Conn BC' }
+      ]
+    };
+    
+    const partialCheck = getChallengeChecklistStatus(mockCustomChallenge, "graph TD\n  A --> B");
+    expect(partialCheck).toEqual([true, true, false]);
+
+    const fullCheck = getChallengeChecklistStatus(mockCustomChallenge, "graph TD\n  A --> B\n  B --> C");
+    expect(fullCheck).toEqual([true, true, true]);
+  });
+
+  it('should ignore requirements in comments inside the editor', () => {
+    const challenge = CHALLENGES[1]; // Level 2 Decision Flowchart
+    
+    // Raw code containing decision arrow in a comment
+    const commentedCode = `graph TD
+      Start[Lost Post-it] --> IsItOnFloor{Is it on the floor?}
+      %% IsItOnFloor -->|Yes| UnderDesk[Look under the desk]
+    `;
+    
+    const checklist = getChallengeChecklistStatus(challenge, commentedCode);
+    
+    // Checklist items:
+    // 0: decl (true)
+    // 1: decision node (true)
+    // 2: Yes path (SHOULD BE FALSE because it is inside the comment!)
+    expect(checklist[0]).toBe(true);
+    expect(checklist[1]).toBe(true);
+    expect(checklist[2]).toBe(false); 
+  });
+});
+
+describe('Comment Stripping Utility', () => {
+  it('should remove comments starting with %%', () => {
+    const raw = "A --> B %% Some comment here\n%% full line comment\nC --> D";
+    expect(stripComments(raw).trim()).toBe("A --> B \n\nC --> D");
+  });
+});
+
+
